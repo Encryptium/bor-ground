@@ -51,17 +51,17 @@ t = Pin(10,Pin.IN)
 bus = I2C(0,sda=Pin(20),scl=Pin(21))
 
 def reset_servos():
-      latch.duty_ns(1000000) # move latch in opposite direction
-      time.sleep(2) # wait for release
-      latch.duty_ns(1500000) ## stop movement
+		latch.duty_ns(1000000) # move latch in opposite direction
+		time.sleep(2) # wait for release
+		latch.duty_ns(1500000) ## stop movement
 
-      parachute.duty_ns(1000000) # move parachute release in opposite direction
-      time.sleep(2.5) # wait for release
-      parachute.duty_ns(1500000) ## stop movement
+		parachute.duty_ns(1000000) # move parachute release in opposite direction
+		time.sleep(2.5) # wait for release
+		parachute.duty_ns(1500000) ## stop movement
 
-      arm.duty_ns(1000000)
-      time.sleep(2)
-      arm.duty_ns(1500000)
+		arm.duty_ns(1000000)
+		time.sleep(2)
+		arm.duty_ns(1500000)
 
 def calcAltitude(press):
 		a = press / 101325.0
@@ -125,11 +125,11 @@ def release_instrument():
 		# command = xbee.read()
 		# command_str = command.decode(utf-8).strip()
 		arm.duty_ns(2000000)
-    
+
 
 # releases the parachute latch
 def deploy():
-    parachute.duty_ns(2000000) # release chute
+		parachute.duty_ns(2000000) # release chute
 		time.sleep(2.5) # wait for release
 		parachute.duty_ns(1500000) # stop servo
 		parachute_released = True # report released
@@ -171,7 +171,7 @@ while 1:
 
 		# if parachute altitude goes below parachute_alt
 		if parachute_ready and alt < parachute_alt and not parachute_released:
-        deploy()
+				deploy()
 				
 
 
