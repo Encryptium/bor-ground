@@ -15,39 +15,40 @@
         <div class="background"></div>
 
         <!-- Video Feed Section -->
-        <div id="video-feed" class="section video-feed">
+        <div id="graphics" class="section graphics">
             <img>
         </div>
 
         <!-- Payload Status Section -->
-        <div id="payload-status" class="section payload-status">
-            <div class="status-container">
+        <div id="payload-container" class="section payload-container">
                 <div class="status-header">Not Connected</div>
                 <div class="status-box"></div>
                 <button id="port-button">Connect</button>
-            </div>
         </div>
 
         <!-- Telemetry data Section -->
         <div id="telemetry-data" class="section telemetry-data">
-            <p>Waiting for data...</p>
+            <div id="console">
+                <p>Waiting for data...</p>
+            </div>
+            <input id="command-input" type="text" placeholder="Send command...">
         </div>
 
         <!-- Status List Section -->
-        <div id="status-list" class="section status-list">
-            <div class="status-item">
-                <div class="status-indicator"></div>
+        <div id="checklist-container" class="section checklist-container">
+            <div class="checklist-item">
+                <div class="status-indicator"><img src="/static/img/checked.svg"></div>
                 <div class="status-label">Launch</div>
             </div>
-            <div class="status-item">
-                <div class="status-indicator"></div>
+            <div class="checklist-item">
+                <div class="status-indicator"><img src="/static/img/checked.svg"></div>
                 <div class="status-label">Reach target altitude</div>
             </div>
-            <div class="status-item">
+            <div class="checklist-item">
                 <div class="status-indicator"></div>
                 <div class="status-label">Deploy</div>
             </div>
-            <div class="status-item">
+            <div class="checklist-item">
                 <div class="status-indicator"></div>
                 <div class="status-label">Instrument released</div>
             </div>

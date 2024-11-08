@@ -34,19 +34,26 @@ body, html {
     position: absolute;
     background: #141414;
     box-shadow: 0px 4px 32.5px 20px rgba(0, 39.93, 61.44, 0.36);
-    border-radius: 20px;
+    border-radius: 45px;
 }
 
 /* Video feed */
-.video-feed {
+.graphics {
     width: 881px;
     height: 53%;
     top: 50px;
     left: 50px;
 }
 
+.graphics img {
+    border-radius: 45px;
+    background-color: #373737;
+    width: calc(100% - 3px);
+    height: calc(100% - 3px);
+}
+
 /* Payload status */
-.payload-status {
+.payload-container {
     width: 444px;
     height: 50%;
     top: 50px;
@@ -87,14 +94,31 @@ body, html {
     height: 25%;
     bottom: 50px;
     left: 50px;
-    color: white;
     overflow-y: scroll;
     padding: 50px;
-    font-family: 'Courier New', Courier, monospace;
+}
+
+.telemetry-data * {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1.5rem;
+    font-style: normal;
+    font-weight: 400;
+    line-height: normal;
+}
+
+.telemetry-data p {
+    color: white;
+}
+
+.telemetry-data input {
+    color: lightgrey;
+    width: 55.0625rem;
+    height: 3.8125rem;
+    background-color: #2A2A2A; 
 }
 
 /* Status list */
-.status-list {
+.checklist-container {
     width: 444px;
     height: 33vh;
     bottom: 50px;
