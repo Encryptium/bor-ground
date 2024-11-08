@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Track Active Launch</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="/static/js/WebSerialPort.js"></script>
+    <script src="/static/js/script.js" defer></script>
+
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Background -->
+        <div class="background"></div>
+
+        <!-- Video Feed Section -->
+        <div id="video-feed" class="section video-feed">
+            <img>
+        </div>
+
+        <!-- Payload Status Section -->
+        <div id="payload-status" class="section payload-status">
+            <div class="status-container">
+                <div class="status-header">Not Connected</div>
+                <div class="status-box"></div>
+                <button id="port-button">Connect</button>
+            </div>
+        </div>
+
+        <!-- Telemetry data Section -->
+        <div id="telemetry-data" class="section telemetry-data">
+            <p>Waiting for data...</p>
+        </div>
+
+        <!-- Status List Section -->
+        <div id="status-list" class="section status-list">
+            <div class="status-item">
+                <div class="status-indicator"></div>
+                <div class="status-label">Launch</div>
+            </div>
+            <div class="status-item">
+                <div class="status-indicator"></div>
+                <div class="status-label">Reach target altitude</div>
+            </div>
+            <div class="status-item">
+                <div class="status-indicator"></div>
+                <div class="status-label">Deploy</div>
+            </div>
+            <div class="status-item">
+                <div class="status-indicator"></div>
+                <div class="status-label">Instrument released</div>
+            </div>
+        </div>
+    </div>
+      
+      
+    
+</body>
+</html>
