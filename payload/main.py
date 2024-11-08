@@ -59,9 +59,9 @@ def reset_servos():
 		time.sleep(2.5) # wait for release
 		parachute.duty_ns(1500000) ## stop movement
 
-    arm.duty_ns(1000000)
-    time.sleep(2)
-    arm.duty_ns(1500000)
+      arm.duty_ns(1000000)
+      time.sleep(2)
+      arm.duty_ns(1500000)
 
 def calcAltitude(press):
 		a = press / 101325.0
