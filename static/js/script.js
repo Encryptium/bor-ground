@@ -1,0 +1,116 @@
+let portButton;
+let telemetryReadings;
+let webserial;
+let payloadStatus;
+let statusItems;
+
+function setup() {
+    // Assign elements and initialize WebSerialPort
+    telemetryReadings = document.getElementById("#telemetry-data");
+    portButton = document.getElementById("port-button");
+    payloadStatus = document.querySelector(".status-header");
+    statusItems = document.querySelectorAll(".status-item");
+    
+    webserial = new WebSerialPort();
+    if (webserial) {
+        // Set up callback for data reception
+        webserial.on("data", serialRead);
+        
+        // Set up the open/close button
+        portButton.addEventListener("click", openClosePort);
+    }
+}
+
+async function openClosePort() {
+    if (webserial.port) {
+        await webserial.closePort();
+        portButton.innerHTML = "Connect";
+
+        for (let item of statusItems) {
+            item.querySelector(".status-indicator").classList.remove("waiting");
+            item.querySelector(".status-indicator").classList.remove("active");
+        }
+    } else {
+        const success = await webserial.openPort();
+        if (success) {
+            portButton.innerHTML = "Disconnect";
+            payloadStatus.innerHTML = "Payload Connected";
+
+            for (let item of statusItems) {
+                item.querySelector(".status-indicator").classList.add("waiting");
+            }
+        }
+
+    }
+}
+
+function serialRead(data) {
+    // Parse the incoming data string into JSON
+    const telemetryData = parseTelemetryData(data);
+
+    // Log or display the parsed JSON data
+    console.log("Parsed Telemetry Data:", telemetryData);
+    telemetryReadings.innerHTML += "<p>" + JSON.stringify(telemetryData, null, 2) + "</p>"; // Display in the `readings` div
+
+    // upload data to server at /api/telemetry
+    fetch('/api/telemetry', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(telemetryData),
+    }).then(response => response.json())
+        .then(data => {
+            console.log('Success:', data);
+        })
+        .catch((error) => {
+            console.error('Error:', error);
+        });
+
+    if (telemetryData.altitude > 50) {
+        statusItems[0].querySelector(".status-indicator").classList.add("active");
+    }
+    if (telemetryData.altitude > 1000) {
+        statusItems[1].querySelector(".status-indicator").classList.add("active");
+    }
+    if (telemetryData.parachute_released) {
+        statusItems[2].querySelector(".status-indicator").classList.add("active");
+    }
+    if (telemetryData.latch_released) {
+        statusItems[3].querySelector(".status-indicator").classList.add("active");
+    }
+
+    // Apply rotation to the payload box based on XYZ rotation values
+    const { x_rotation, y_rotation, z_rotation } = telemetryData;
+    const statusBox = document.querySelector(".status-box");
+    statusBox.style.transform = `rotateX(${x_rotation}deg) rotateY(${y_rotation}deg) rotateZ(${z_rotation}deg)`;
+}
+
+
+// Run setup after the page has loaded
+document.addEventListener("DOMContentLoaded", setup);
+
+
+function parseTelemetryData(data) {
+    // Remove the initial "S" character and any trailing newline
+    data = data.trim().substring(1);
+
+    // Split the data by commas
+    const values = data.split(',');
+
+    // Create a JSON object with the expected keys and values
+    const jsonData = {
+        latitude: parseFloat(values[0]),
+        longitude: parseFloat(values[1]),
+        altitude: parseFloat(values[2]),
+        pressure: parseFloat(values[3]),
+        x_rotation: parseFloat(values[4]),
+        y_rotation: parseFloat(values[5]),
+        z_rotation: parseFloat(values[6]),
+        temperature: parseFloat(values[7]),
+        parachute_released: parseInt(values[8], 10),
+        latch_released: parseInt(values[9], 10)
+    };
+
+    return jsonData;
+}
