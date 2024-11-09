@@ -9,7 +9,7 @@ function setup() {
     telemetryReadings = document.getElementById("#telemetry-data");
     portButton = document.getElementById("port-button");
     payloadStatus = document.querySelector(".status-header");
-    statusItems = document.querySelectorAll(".status-item");
+    statusItems = document.querySelectorAll(".checklist-item");
     
     webserial = new WebSerialPort();
     if (webserial) {

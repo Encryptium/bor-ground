@@ -39,6 +39,7 @@ body, html {
 
 /* Video feed */
 .graphics {
+    /* position: absolute; */
     width: 881px;
     height: 53%;
     top: 50px;
@@ -47,9 +48,13 @@ body, html {
 
 .graphics img {
     border-radius: 45px;
-    background-color: #373737;
-    width: calc(100% - 3px);
-    height: calc(100% - 3px);
+    background: linear-gradient(104deg, #84F2BF 5.74%, #5276D9 94.32%);
+    width: calc(100% - 3rem);
+    height: calc(100% - 3rem);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
 }
 
 /* Payload status */
@@ -94,16 +99,23 @@ body, html {
     height: 25%;
     bottom: 50px;
     left: 50px;
-    overflow-y: scroll;
     padding: 50px;
 }
 
 .telemetry-data * {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 1.5rem;
+    font-size: 16px;
     font-style: normal;
     font-weight: 400;
     line-height: normal;
+}
+
+.telemetry-data div {
+    overflow-y: scroll;
+    height: calc(100% - 6rem);
+    position: absolute;
+    bottom: 4rem;
+    width: 100%;
 }
 
 .telemetry-data p {
@@ -114,7 +126,14 @@ body, html {
     color: lightgrey;
     width: 55.0625rem;
     height: 3.8125rem;
-    background-color: #2A2A2A; 
+    background-color: rgba(255, 255, 255, 0.093); 
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    border: none;
+    border-radius: 0px 0px 45px 45px;
+    padding-left: 30px;
+    outline: none;
 }
 
 /* Status list */
@@ -125,7 +144,22 @@ body, html {
     right: 50px;
 }
 
-.status-item {
+.checklist-container ul {
+    list-style-type: none;
+    padding: 0;
+    margin-top: 45px;
+}
+
+.checklist-container ul li {
+    margin: 0;
+    padding: 0;
+    color: white;
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 20px;
+}
+
+.checklist-item {
     position: relative;
     display: flex;
     align-items: center;
