@@ -1,7 +1,4 @@
-# flask template
-
 from flask import Flask, render_template, request, redirect, url_for
-import sqlite3
 import datetime
 import matplotlib.pyplot as plt
 import os
