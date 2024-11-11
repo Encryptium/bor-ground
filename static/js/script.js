@@ -79,23 +79,22 @@ function serialRead(data) {
             console.error('Error:', error);
         });
 
-    if (telemetryData.altitude > 50) {
+    if (telemetryData.launched) {
         statusItems[0].querySelector(".status-indicator").classList.add("active");
+        playStageCompleteSound();
     }
-    if (telemetryData.altitude > 1000) {
+    if (telemetryData.target_altitude_reached) {
         statusItems[1].querySelector(".status-indicator").classList.add("active");
     }
     if (telemetryData.parachute_released) {
         statusItems[2].querySelector(".status-indicator").classList.add("active");
     }
-    if (telemetryData.latch_released) {
+    if (telemetryData.instrument_released) {
         statusItems[3].querySelector(".status-indicator").classList.add("active");
+        document.querySelector("#payload-container .status-box img").src = "/static/img/payload_open.png";
     }
 
     // Apply rotation to the payload box based on XYZ rotation values
-    const { x_rotation, y_rotation, z_rotation } = telemetryData;
-    const statusBox = document.querySelector(".status-box");
-    statusBox.style.transform = `rotateX(${x_rotation}deg) rotateY(${y_rotation}deg) rotateZ(${z_rotation}deg)`;
 }
 
 
@@ -120,11 +119,17 @@ function parseTelemetryData(data) {
         y_rotation: parseFloat(values[5]),
         z_rotation: parseFloat(values[6]),
         temperature: parseFloat(values[7]),
-        parachute_released: parseInt(values[8], 10),
-        latch_released: parseInt(values[9], 10)
+        launched: parseInt(values[8], 10),
+        target_altitude_reached: parseInt(values[9], 10),
+        parachute_released: parseInt(values[10], 10),
+        instrument_released: parseInt(values[11], 10),
     };
 
     return jsonData;
 }
 
 
+function playStageCompleteSound() {
+    const audio = new Audio("/static/audio/stage_complete.aac");
+    audio.play();
+}

@@ -108,6 +108,13 @@ fd = open('samples.dat','w') # log all data locally
 
 start = time.time()
 
+# status variables
+launched = False
+target_altitude_reached = False
+instrument_released = False
+
+TARGET_ALTITUDE = 1000 # target altitude in meters
+
 parachute_alt = 100 # parachute releases at 100m
 parachute_ready = False
 parachute_released = False
@@ -118,6 +125,7 @@ latch_released = False
 
 # set to true after landing
 arm_active = False
+arm_released = False
 
 
 # moves the rover forward after command received
@@ -125,6 +133,12 @@ def release_instrument():
 		# command = xbee.read()
 		# command_str = command.decode(utf-8).strip()
 		arm.duty_ns(2000000)
+		arm_active = False # disable after movement complete
+		arm_released = True # report released
+		time.sleep(2.5)
+		arm.duty_ns(1500000)
+		reset_servos()
+		instrument_released = True
 
 
 # releases the parachute latch
@@ -156,17 +170,23 @@ while 1:
 		longitude = convert_coordinates(gps.longitude)
 
 		if latitude is None or longitude is None:
-				latitude=0.0
-				longitude=0.0
-				pass
+				latitude = 0.0
+				longitude = 0.0
 
 		#pressure = round(bmp.pressure*9.8692*0.000001, 2) #for atm conversion
 		pressure = bmp.pressure
 		temperature = bmp.temperature
 		current_time = time.time()
 
+
+		if alt > TARGET_ALTITUDE:
+				target_altitude_reached = True
+
+
 		# when rocket goes above parachute_alt
+		# the parachute is ready to deploy
 		if alt > parachute_alt:
+				launched = True
 				parachute_ready = True # parachute ready
 
 		# if parachute altitude goes below parachute_alt
@@ -185,13 +205,11 @@ while 1:
 				latch.duty_ns(1500000) # stop servo
 				latch_released = True # report released
 
-				time.sleep(0.1) # wait
-				reset_servos() # then reset servos for reuse when retrieved
 
 		# after everything has released
-		if latch_released and parachute_released:
+		if latch_released and parachute_released and not arm_released:
 				time.sleep(1)
-				arm_active = True # activate rover
+				arm_active = True 
 
 
 		if arm_active:
@@ -199,7 +217,7 @@ while 1:
 
 
 		# format telemetry data
-		data = 'S%0.5f,%0.5f,%0.2f,%0.1f,%0.2f,%0.2f,%0.2f,%0.2f,%i,%i\n' % (float(latitude), float(longitude), alt, pressure, x, y, z, temperature, int(parachute_released), int(latch_released)) #altitude & pressure
+		data = 'S%0.4f,%0.4f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%i,%i,%i,%i\n' % (float(latitude), float(longitude), alt, pressure, x, y, z, temperature, int(launched), int(target_altitude_reached), int(parachute_released), int(instrument_released)) #altitude & pressure
 
 		print(data)
 		xbee.write(data.encode()) # send data over radio
