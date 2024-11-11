@@ -3,6 +3,7 @@
 from flask import Flask, render_template, request, redirect, url_for
 import sqlite3
 import datetime
+import matplotlib.pyplot as plt
 
 app = Flask(__name__)
 
@@ -29,9 +30,24 @@ def telemetry():
 
     with open('telemetry/' + date + '.txt', 'a') as f:
         f.write(formatted_time + ' ' + str(data) + '\n')
-    
-    # return hash of data
-    return {'hash': hash(str(data))}
+
+    # get data.altitude and plot it using matplotlib with time on x-axis
+    altitudes = []
+    times = []
+    for line in open('telemetry/' + date + '.txt', 'r'):
+        if 'altitude' in line:
+            altitudes.append(line.split(' ')[1])
+            times.append(line.split(' ')[0])
+
+    plt.plot(times, altitudes)
+    plt.xlabel('Time')
+    plt.ylabel('Altitude')
+    plt.title('Altitude vs Time')
+    plt.savefig('static/altitude_plot.png')
+    plt.close()
+
+    # return the url of the image
+    return {'url': 'static/altitude_plot.png'}
 
 
 if __name__ == '__main__':

@@ -3,13 +3,15 @@ let telemetryReadings;
 let webserial;
 let payloadStatus;
 let statusItems;
+let commandInput;
 
 function setup() {
     // Assign elements and initialize WebSerialPort
-    telemetryReadings = document.getElementById("#telemetry-data");
+    telemetryReadings = document.getElementById("console");
     portButton = document.getElementById("port-button");
     payloadStatus = document.querySelector(".status-header");
     statusItems = document.querySelectorAll(".checklist-item");
+    commandInput = document.getElementById("command-input");
     
     webserial = new WebSerialPort();
     if (webserial) {
@@ -19,6 +21,15 @@ function setup() {
         // Set up the open/close button
         portButton.addEventListener("click", openClosePort);
     }
+
+    commandInput.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+            const command = commandInput.value;
+            webserial.sendSerial("S" + command);
+            telemetryReadings.innerHTML += "<p>Command Sent: " + command + "</p>";
+            commandInput.value = "";
+        }
+    });
 }
 
 async function openClosePort() {
@@ -62,6 +73,7 @@ function serialRead(data) {
     }).then(response => response.json())
         .then(data => {
             console.log('Success:', data);
+            document.querySelector("#graphics img").src = data.url;
         })
         .catch((error) => {
             console.error('Error:', error);
@@ -114,3 +126,5 @@ function parseTelemetryData(data) {
 
     return jsonData;
 }
+
+
