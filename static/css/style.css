@@ -52,7 +52,7 @@ body, html {
     border-radius: 45px;
     /* background: linear-gradient(104deg, #84F2BF 5.74%, #5276D9 94.32%); */
     background-color: #141414;
-    width: calc(100% - 5rem);
+    width: calc(100% - 3rem);
     height: calc(100% - 3rem);
     position: absolute;
     top: 50%;

@@ -4,55 +4,121 @@ let webserial;
 let payloadStatus;
 let statusItems;
 let commandInput;
+let port;
+let isConnected = false;
 
 function setup() {
-    // Assign elements and initialize WebSerialPort
+    // Assign elements
     telemetryReadings = document.getElementById("console");
     portButton = document.getElementById("port-button");
     payloadStatus = document.querySelector(".status-header");
     statusItems = document.querySelectorAll(".checklist-item");
     commandInput = document.getElementById("command-input");
     
-    webserial = new WebSerialPort();
-    if (webserial) {
-        // Set up callback for data reception
-        webserial.on("data", serialRead);
-        
-        // Set up the open/close button
-        portButton.addEventListener("click", openClosePort);
-    }
+    // Set up the open/close button
+    portButton.addEventListener("click", openClosePort);
 
     commandInput.addEventListener("keydown", function (event) {
         if (event.key === "Enter") {
             const command = commandInput.value;
-            webserial.sendSerial("S" + command);
-            telemetryReadings.innerHTML += "<p>Command Sent: " + command + "</p>";
+            if (isConnected) {
+                sendSerialCommand("S" + command);
+                telemetryReadings.innerHTML += "<p>Command Sent: " + command + "</p>";
+            } else {
+                telemetryReadings.innerHTML += "<p>Not connected. Command not sent.</p>";
+            }
             commandInput.value = "";
         }
     });
+
+    // Add disconnect event listener to handle unexpected disconnections
+    navigator.serial.addEventListener('disconnect', handleDisconnect);
 }
 
-async function openClosePort() {
-    if (webserial.port) {
-        await webserial.closePort();
-        portButton.innerHTML = "Connect";
+// Handle unexpected disconnection
+function handleDisconnect(event) {
+    if (port && event.target === port) {
+        console.log("Serial device disconnected unexpectedly.");
+        isConnected = false;
         payloadStatus.innerHTML = "Payload Disconnected";
+        portButton.innerHTML = "Connect";
 
         for (let item of statusItems) {
             item.querySelector(".status-indicator").classList.remove("waiting");
             item.querySelector(".status-indicator").classList.remove("active");
         }
+
+        telemetryReadings.innerHTML += "<p>Serial device disconnected unexpectedly.</p>";
+        const disconnect = new Audio("/static/audio/warning.aac");
+        disconnect.play();
+    }
+}
+
+async function openClosePort() {
+    if (isConnected) {
+        await closePort();
     } else {
-        const success = await webserial.openPort();
+        const success = await openPort();
         if (success) {
             portButton.innerHTML = "Disconnect";
             payloadStatus.innerHTML = "Payload Connected";
-
             for (let item of statusItems) {
                 item.querySelector(".status-indicator").classList.add("waiting");
             }
         }
+    }
+}
 
+async function openPort() {
+    try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 9600 });
+        isConnected = true;
+        console.log("Serial port opened.");
+
+        // Handle incoming data
+        const reader = port.readable.getReader();
+        while (isConnected) {
+            const { value, done } = await reader.read();
+            if (done) {
+                console.log("Reader closed");
+                break;
+            }
+            serialRead(new TextDecoder().decode(value));
+        }
+        reader.releaseLock();
+        return true;
+    } catch (error) {
+        console.error("Failed to open serial port:", error);
+        return false;
+    }
+}
+
+async function closePort() {
+    if (port && port.readable) {
+        await port.readable.cancel();
+    }
+    if (port) {
+        await port.close();
+        isConnected = false;
+        console.log("Serial port closed.");
+    }
+    portButton.innerHTML = "Connect";
+    payloadStatus.innerHTML = "Payload Disconnected";
+
+    for (let item of statusItems) {
+        item.querySelector(".status-indicator").classList.remove("waiting");
+        item.querySelector(".status-indicator").classList.remove("active");
+    }
+}
+
+function sendSerialCommand(command) {
+    if (isConnected && port.writable) {
+        const writer = port.writable.getWriter();
+        writer.write(new TextEncoder().encode(command));
+        writer.releaseLock();
+    } else {
+        console.log("Cannot send command: Not connected.");
     }
 }
 
@@ -62,10 +128,10 @@ function serialRead(data) {
 
     // Log or display the parsed JSON data
     console.log("Parsed Telemetry Data:", telemetryData);
-    telemetryReadings.innerHTML += "<p>" + JSON.stringify(telemetryData, null, 2) + "</p><br>"; // Display in the `readings` div
+    telemetryReadings.innerHTML += "<p>" + JSON.stringify(telemetryData, null, 2) + "</p><br>";
     telemetryReadings.scrollTop = telemetryReadings.scrollHeight;
 
-    // upload data to server at /api/telemetry
+    // Upload data to server at /api/telemetry
     fetch('/api/telemetry', {
         method: 'POST',
         headers: {
@@ -81,6 +147,7 @@ function serialRead(data) {
             console.error('Error:', error);
         });
 
+    // Update status indicators
     if (telemetryData.launched) {
         statusItems[0].querySelector(".status-indicator").classList.add("active");
         playStageCompleteSound();
@@ -95,24 +162,15 @@ function serialRead(data) {
         statusItems[3].querySelector(".status-indicator").classList.add("active");
         document.querySelector("#payload-container .status-box img").src = "/static/img/payload-open.svg";
     }
-
-    // Apply rotation to the payload box based on XYZ rotation values
 }
-
 
 // Run setup after the page has loaded
 document.addEventListener("DOMContentLoaded", setup);
 
-
 function parseTelemetryData(data) {
-    // Remove the initial "S" character and any trailing newline
     data = data.trim().substring(1);
-
-    // Split the data by commas
     const values = data.split(',');
-
-    // Create a JSON object with the expected keys and values
-    const jsonData = {
+    return {
         latitude: parseFloat(values[0]),
         longitude: parseFloat(values[1]),
         altitude: parseFloat(values[2]),
@@ -126,16 +184,12 @@ function parseTelemetryData(data) {
         parachute_released: parseInt(values[10], 10),
         instrument_released: parseInt(values[11], 10),
     };
-
-    return jsonData;
 }
-
 
 function playStageCompleteSound() {
-    const audio = new Audio("/static/audio/stage_complete.aac");
-    audio.play();
+    const complete = new Audio("/static/audio/stage_complete.aac");
+    complete.play();
 }
-
 
 
 // TEST CODE, REMOVE BEFORE FLIGHT

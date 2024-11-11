@@ -57,21 +57,22 @@ def telemetry():
     # Set plot style for a dark theme
     plt.style.use('dark_background')
     
+    # Set figure size for an 801x440 aspect ratio (8.01x4.4 inches at 100 DPI)
+    fig, ax = plt.subplots(figsize=(8.01, 4.4))
+    
     # Plot altitude vs time
-    plt.plot(times, altitudes, color='cyan')  # Line color set to cyan
-    plt.xlabel('Time', color='white')         # X-axis label color set to white
-    plt.ylabel('Altitude', color='white')     # Y-axis label color set to white
-    plt.title('Altitude vs Time', color='white')  # Title color set to white
-    plt.xticks(color='white')                 # X-axis tick labels color set to white
-    plt.yticks(color='white')                 # Y-axis tick labels color set to white
+    ax.plot(times, altitudes, color='white')  # Line color set to white
+    ax.set_xlabel('Time', color='white')         # X-axis label color set to white
+    ax.set_ylabel('Altitude', color='white')     # Y-axis label color set to white
+    ax.set_title('Altitude vs Time', color='white')  # Title color set to white
+    ax.tick_params(axis='x', colors='white')     # X-axis tick labels color set to white
+    ax.tick_params(axis='y', colors='white')     # Y-axis tick labels color set to white
     plt.xticks(rotation=45)  # Rotate x-axis labels for better readability
     plt.tight_layout()  # Adjust layout to prevent label cutoff
 
-    
-    # Save the plot with a transparent background so only the plot area is black
-    plt.savefig('static/altitude_plot.png', transparent=True)
+    # Save the plot with the specified DPI to maintain quality
+    plt.savefig('static/altitude_plot.png', dpi=200, transparent=True)
     plt.close()
-
 
     # Return the URL of the image
     return {'url': 'static/altitude_plot.png'}
