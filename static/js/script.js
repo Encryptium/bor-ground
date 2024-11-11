@@ -36,6 +36,7 @@ async function openClosePort() {
     if (webserial.port) {
         await webserial.closePort();
         portButton.innerHTML = "Connect";
+        payloadStatus.innerHTML = "Payload Disconnected";
 
         for (let item of statusItems) {
             item.querySelector(".status-indicator").classList.remove("waiting");
@@ -61,7 +62,8 @@ function serialRead(data) {
 
     // Log or display the parsed JSON data
     console.log("Parsed Telemetry Data:", telemetryData);
-    telemetryReadings.innerHTML += "<p>" + JSON.stringify(telemetryData, null, 2) + "</p>"; // Display in the `readings` div
+    telemetryReadings.innerHTML += "<p>" + JSON.stringify(telemetryData, null, 2) + "</p><br>"; // Display in the `readings` div
+    telemetryReadings.scrollTop = telemetryReadings.scrollHeight;
 
     // upload data to server at /api/telemetry
     fetch('/api/telemetry', {
@@ -73,7 +75,7 @@ function serialRead(data) {
     }).then(response => response.json())
         .then(data => {
             console.log('Success:', data);
-            document.querySelector("#graphics img").src = data.url;
+            document.querySelector("#graphics img").src = `${data.url}?t=${new Date().getTime()}`;
         })
         .catch((error) => {
             console.error('Error:', error);
@@ -91,7 +93,7 @@ function serialRead(data) {
     }
     if (telemetryData.instrument_released) {
         statusItems[3].querySelector(".status-indicator").classList.add("active");
-        document.querySelector("#payload-container .status-box img").src = "/static/img/payload_open.png";
+        document.querySelector("#payload-container .status-box img").src = "/static/img/payload-open.svg";
     }
 
     // Apply rotation to the payload box based on XYZ rotation values
@@ -133,3 +135,33 @@ function playStageCompleteSound() {
     const audio = new Audio("/static/audio/stage_complete.aac");
     audio.play();
 }
+
+
+
+// TEST CODE, REMOVE BEFORE FLIGHT
+document.addEventListener("DOMContentLoaded", () => {
+    setup();
+
+    // Test the serialRead function
+    const testData1 = "S37.7749,-122.4194,0.0,1013.2,10.5,20.6,30.7,25.3,0,0,0,0";
+    const testData2 = "S37.7749,-122.4194,1000.0,1013.2,10.5,20.6,30.7,25.3,1,0,0,0";
+    const testData3 = "S37.7749,-122.4194,990.0,1013.2,10.5,20.6,30.7,25.3,1,1,0,0";
+    const testData4 = "S37.7749,-122.4194,850.5,1013.2,10.5,20.6,30.7,25.3,1,1,1,0";
+    const testData5 = "S37.7749,-122.4194,10.5,1013.2,10.5,20.6,30.7,25.3,1,1,1,1";
+    
+    
+    serialRead(testData1);
+    
+    setTimeout(() => {
+        serialRead(testData2);
+        setTimeout(() => {
+            serialRead(testData3);
+            setTimeout(() => {
+                serialRead(testData4);
+                setTimeout(() => {
+                    serialRead(testData5);
+                }, 3000);
+            }, 3000);
+        }, 3000);
+    }, 3000);
+});
