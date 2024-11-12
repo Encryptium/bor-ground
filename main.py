@@ -18,6 +18,10 @@ def index():
 def track():
     return render_template('track.html')
 
+@app.route('/analyze')
+def analyze():
+    return render_template('analyze.html')
+
 @app.route('/api/telemetry', methods=['POST'])
 def telemetry():
     data = request.json

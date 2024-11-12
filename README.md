@@ -20,12 +20,32 @@ Every line of telemetry data will be printed in the console module.
 
 #### Flask Backend
 The backend is programmed in Python using Flask. For each line of data processed, the frontend sends the translated JSON to an API endpoint `/api/telemetry`. The data is stored on server as files in the '/telemetry' directory.
+```js
+// Data is received as the following in JSON/dict
+{
+        latitude: parseFloat(values[0]),
+        longitude: parseFloat(values[1]),
+        altitude: parseFloat(values[2]),
+        pressure: parseFloat(values[3]),
+        x_rotation: parseFloat(values[4]),
+        y_rotation: parseFloat(values[5]),
+        z_rotation: parseFloat(values[6]),
+        temperature: parseFloat(values[7]),
+        launched: parseInt(values[8], 10),
+        target_altitude_reached: parseInt(values[9], 10),
+        parachute_released: parseInt(values[10], 10),
+        instrument_released: parseInt(values[11], 10),
+}
+```
 ##### Telemetry Replay
 The saved log of the telemetry data also allows quick recovery if connection is lost or closed. Further, it enables the feature to replay a launch in real time as time codes are assigned to each entry.
 
 #### Matplotlib Plotting
 In addition to storing the telemetry data, Matplotlib is used to graph any chosen value from the JSON data. An image of the resulting plot is then sent back to the frontend as a response after receipt of telemetry data. The plot is displayed on the top left graphics module.
 
+The following graph shows the example data, which is preloaded in `/static/js/script.js`. Remember to remove or comment this prior to an actual launch.
+![altitude_plot](https://github.com/user-attachments/assets/954f0701-038b-4365-94ab-21305cc750be)
+*image may be difficult to view if your background is white*
 #### Live Camera Feed
 Alongside the plotting software, the graphics module can also display frames serving as a low framerate live video feed if the payload supports camera functionality.
 ##### Base64 Image Encoding
@@ -54,13 +74,13 @@ In the event of a restart to the program, the payload will reset all variables. 
 
 To force the mission into a later phase, such a command is used:
 ```
-system -p [method_for_phase]
+system -p [phase_name]
 ```
 
-`[method_for_phase]` is whatever method name contains the code to enter a specific phase on the payload. 
+`[phase_name]` is whatever predefined identifier sets the payload configuration to enter a certain phase.
 
-##### Implemented Methods
-- `launch()`
-- `reach_target_altitude()`
-- `deploy()`
-- `instrument_released()`
+##### Implemented Phases
+- `launch`
+- `reach_target_altitude`
+- `deploy`
+- `release_instrument`

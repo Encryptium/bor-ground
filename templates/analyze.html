@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Replay Previous Launch</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="/static/js/WebSerialPort.js"></script>
+    <!-- <script src="/static/js/script.js" defer></script> -->
+
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Background -->
+        <div class="background"></div>
+
+        <!-- Video Feed Section -->
+        <div id="graphics" class="section graphics">
+            <img>
+        </div>
+
+        <!-- Payload Status Section -->
+        <div id="payload-container" class="section payload-container">
+                <div class="status-header"><i>REPLAY</i></div>
+                <div class="status-box"><img src="/static/img/secured-payload.svg" draggable="false"></div>
+        </div>
+
+        <!-- Telemetry data Section -->
+        <div id="telemetry-data" class="section telemetry-data">
+            <div id="console">
+                <p>Loading data...</p>
+            </div>
+            <input id="command-input" type="text" placeholder="Send command...">
+        </div>
+
+        <!-- Status List Section -->
+        <div id="checklist-container" class="section checklist-container">
+            <ul>
+                <li>
+                    <div class="checklist-item">
+                        <div class="status-indicator"></div>
+                        <div class="status-label">Launch</div>
+                    </div>
+                </li>
+                <li>
+                    <div class="checklist-item">
+                        <div class="status-indicator"></div>
+                        <div class="status-label">Reach target altitude</div>
+                    </div>
+                </li>
+                <li>
+                    <div class="checklist-item">
+                        <div class="status-indicator"></div>
+                        <div class="status-label">Deploy</div>
+                    </div>
+                </li>
+                <li>
+                    <div class="checklist-item">
+                        <div class="status-indicator"></div>
+                        <div class="status-label">Release instrument</div>
+                    </div>
+                </li>
+            </ul>
+            
+        </div>
+    </div>
+      
+      
+    
+</body>
+</html>
