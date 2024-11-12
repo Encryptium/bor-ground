@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Past Launches</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+    <div id="events-list">
+        {% for event in events %}
+        <div class="event">
+            <h3>{{ event.date }}</h3>
+            <p>{{ event.duration }} lines of data</p>
+        </div>
+        {% endfor %}
+    </div>
+    
+    
+</body>
+</html>
