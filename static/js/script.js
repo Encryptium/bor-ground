@@ -148,19 +148,31 @@ function serialRead(data) {
         });
 
     // Update status indicators
-    if (telemetryData.launched) {
-        statusItems[0].querySelector(".status-indicator").classList.add("active");
-        playStageCompleteSound();
-    }
-    if (telemetryData.target_altitude_reached) {
-        statusItems[1].querySelector(".status-indicator").classList.add("active");
-    }
-    if (telemetryData.parachute_released) {
-        statusItems[2].querySelector(".status-indicator").classList.add("active");
-    }
+    
     if (telemetryData.instrument_released) {
+        if (!statusItems[3].querySelector(".status-indicator").classList.contains("active")) {
+            playStageCompleteSound();
+        }
         statusItems[3].querySelector(".status-indicator").classList.add("active");
         document.querySelector("#payload-container .status-box img").src = "/static/img/payload-open.svg";
+    }
+    else if (telemetryData.parachute_released) {
+        if (!statusItems[2].querySelector(".status-indicator").classList.contains("active")) {
+            playStageCompleteSound();
+        }
+        statusItems[2].querySelector(".status-indicator").classList.add("active");
+    }  
+    else if (telemetryData.target_altitude_reached) {
+        if (!statusItems[1].querySelector(".status-indicator").classList.contains("active")) {
+            playStageCompleteSound();
+        }
+        statusItems[1].querySelector(".status-indicator").classList.add("active");
+    }
+    else if (telemetryData.launched) {
+        if (!statusItems[0].querySelector(".status-indicator").classList.contains("active")) {
+            playStageCompleteSound();
+        }
+        statusItems[0].querySelector(".status-indicator").classList.add("active");
     }
 }
 
