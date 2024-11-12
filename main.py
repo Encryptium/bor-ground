@@ -20,7 +20,16 @@ def track():
 
 @app.route('/analyze')
 def analyze():
-    return render_template('analyze.html')
+    # count the number of files in the telemetry directory
+    telemetry_files = os.listdir('telemetry')
+
+    telemetry_events = []
+
+    for i, file in enumerate(telemetry_files):
+        # get length of file
+        telemetry_events.append({"duration": len(open(f'telemetry/{file}', 'r').readlines()), "date": file.split('.')[0]})
+
+    return render_template('analyze.html', events=telemetry_events)
 
 @app.route('/api/telemetry', methods=['POST'])
 def telemetry():
