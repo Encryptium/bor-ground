@@ -13,8 +13,8 @@
 <body>
     <style>
         #payload-container div i {
-            background-color: #FFD800;
-            color:#373737;
+            background-color: royalblue;
+            color: whitesmoke;
         }
 
         #replay-speed {
@@ -65,6 +65,26 @@
             margin-top: 3px;
             font-weight: bold;
         }
+
+        #pause-button {
+            background-color: transparent;
+            position: absolute;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: fit-content;
+            height: 40px;
+            padding: 5px 20px;
+            border: none;
+            border-radius: 4px;
+            font-weight: 600;
+            z-index: 99;
+            cursor: pointer;
+        }
+
+        #pause-button img {
+            pointer-events: none;
+        }
     </style>
 
     <script>
@@ -86,6 +106,7 @@
         <div id="payload-container" class="section payload-container">
                 <div class="status-header"><i>&nbsp;REPLAY&nbsp;</i> at <input type="number" id="replay-speed" value="500" min="200" max="999" step="1">ms</div>
                 <div class="status-box"><img src="/static/img/secured-payload.svg" draggable="false"></div>
+                <button id="pause-button"><img src="/static/img/pause.svg"></button>
         </div>
 
         <!-- Telemetry data Section -->
