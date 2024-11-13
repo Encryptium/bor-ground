@@ -22,6 +22,7 @@ from bmp280 import BMP280
 from adxl345 import ADXL345
 from mpu6050 import MPU6050
 from micropyGPS import MicropyGPS
+import sys
 import time
 import math
 
@@ -128,17 +129,32 @@ arm_active = False
 arm_released = False
 
 
+def capture():
+	command = xbee.read()
+	command_str = command.decode(utf-8).strip()
+
+	if command_str == "camera -c":
+		# camera capture to be implemented
+		print("camera capture waiting on implementation")
+		pass
+	else:
+		capture()
+
 # moves the rover forward after command received
 def release_instrument():
-		# command = xbee.read()
-		# command_str = command.decode(utf-8).strip()
-		arm.duty_ns(2000000)
-		arm_active = False # disable after movement complete
-		arm_released = True # report released
-		time.sleep(2.5)
-		arm.duty_ns(1500000)
-		reset_servos()
-		instrument_released = True
+		command = xbee.read()
+		command_str = command.decode(utf-8).strip()
+
+		if command_str == "arm -r":
+			arm.duty_ns(2000000)
+			arm_active = False # disable after movement complete
+			arm_released = True # report released
+			time.sleep(2.5)
+			arm.duty_ns(1500000)
+			reset_servos()
+			instrument_released = True
+		else:
+			release_instrument()
 
 
 # releases the parachute latch
@@ -219,7 +235,12 @@ while 1:
 		# format telemetry data
 		data = 'S%0.4f,%0.4f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%i,%i,%i,%i\n' % (float(latitude), float(longitude), alt, pressure, x, y, z, temperature, int(launched), int(target_altitude_reached), int(parachute_released), int(instrument_released)) #altitude & pressure
 
-		print(data)
+		# print(data)
+
+		# Send data to the USB serial port for local debugging
+		sys.stdout.write(data)
+
+
 		xbee.write(data.encode()) # send data over radio
 
 		# fd.write(data) # log data locally

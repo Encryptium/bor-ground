@@ -53,8 +53,14 @@ To display the live camera feed, the interface is capable of receiving a base64 
 *Note: Currently, there is no method of saving any frames of the camera feed into the logs for simplicity. May be implemented in the future.*
 
 ### Commands
+#### Release Instrument
+The first command required to be sent to the payload, as per the BoR `2025 Competition Guide Rev 1.0a`, is to activate arm movement to release the instrument. Please note that this command is only available after the payload has stopped transmission of telemetry data.This action can be performed with the following:
+```
+arm -r
+```
+
 #### Capture Frame on Payload
-The functionality to capture the current frame and save it onto the payload is available as a command via the console input. This command is only available when the payload has stopped transmission of telemetry data. The command is as follows:
+The functionality to capture the current frame and save it onto the payload is available as a command via the console input. This command is only available when the `arm -r` command has been issued and executed. The command is as follows:
 ```
 camera -c
 ```
