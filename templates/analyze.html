@@ -18,13 +18,13 @@
         }
 
         #replay-speed {
-            background-color: #FFD800;
-            color:#373737;
+            background-color: transparent;
+            color:whitesmoke;
             border: none;
             text-align: center;
             font-size: 36px;
             font-weight: bold;
-            width: 60px;
+            width: 65px;
             outline: none;
         }
 
@@ -46,7 +46,7 @@
         }
 
         .section {
-            border: 3px solid #ffd90068;
+            outline: 3px solid #ffd90068;
         }
 
         #disclaimer {
@@ -83,7 +83,7 @@
 
         <!-- Payload Status Section -->
         <div id="payload-container" class="section payload-container">
-                <div class="status-header"><i>&nbsp;REPLAY at <input type="number" id="replay-speed" value="500" min="1" max="999" step="1">ms</i></div>
+                <div class="status-header"><i>&nbsp;REPLAY&nbsp;</i> at <input type="number" id="replay-speed" value="500" min="200" max="999" step="1">ms</div>
                 <div class="status-box"><img src="/static/img/secured-payload.svg" draggable="false"></div>
         </div>
 

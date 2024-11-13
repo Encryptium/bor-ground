@@ -18,6 +18,15 @@ function setup() {
     handlePreloadedData(preloadedData);
 
     speedInput.addEventListener("change", function (event) {
+        // Limit the replay speed to a minimum of 200ms
+        // for server response time
+        if (event.target.value < 200) {
+            event.target.value = 200;
+        }
+        else if (event.target.value > 999) {
+            event.target.value = 999;
+        }
+
         replaySpeed = event.target.value;
     });
     
