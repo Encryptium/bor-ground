@@ -77,21 +77,31 @@ def telemetry():
 
     # Set plot style for a dark theme
     plt.style.use('dark_background')
-    
+
     # Set figure size for an 801x440 aspect ratio (8.01x4.4 inches at 100 DPI)
     fig, ax = plt.subplots(figsize=(8.01, 4.4))
-    
+
     # Plot altitude vs time
     ax.plot(times, altitudes, color='white')  # Line color set to white
+    
+    # Remove the top and left spines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
     ax.set_xlabel('Time', color='white')         # X-axis label color set to white
     ax.set_ylabel('Altitude', color='white')     # Y-axis label color set to white
     ax.set_title('Altitude vs Time', color='white')  # Title color set to white
-    ax.tick_params(axis='x', colors='white')     # X-axis tick labels color set to white
     ax.tick_params(axis='y', colors='white')     # Y-axis tick labels color set to white
-    plt.xticks(rotation=45)  # Rotate x-axis labels for better readability
-    plt.tight_layout()  # Adjust layout to prevent label cutoff
+
+    # Calculate the midpoint index
+    mid_index = len(times) // 2
+
+    # Only show the first, midpoint, and last timestamp on the x-axis
+    ax.set_xticks([times[0], times[mid_index], times[-1]])
+    ax.set_xticklabels([times[0], times[mid_index], times[-1]], rotation=15, color='white')
 
     # Save the plot with the specified DPI to maintain quality
+    plt.tight_layout()
     plt.savefig('static/altitude_plot.png', dpi=200, transparent=True)
     plt.close()
 
@@ -136,6 +146,11 @@ def replay():
 
     # Plot altitude vs time
     ax.plot(times, altitudes, color='white')  # Line color set to white
+    
+    # Remove the top and left spines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
     ax.set_xlabel('Time', color='white')         # X-axis label color set to white
     ax.set_ylabel('Altitude', color='white')     # Y-axis label color set to white
     ax.set_title('Altitude vs Time', color='white')  # Title color set to white
