@@ -4,12 +4,68 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Replay Previous Launch</title>
+    <link rel="icon" type="image/x-icon" href="/static/img/favicon.png">
     <link rel="stylesheet" href="/static/css/style.css">
     <script src="/static/js/WebSerialPort.js"></script>
     <!-- <script src="/static/js/script.js" defer></script> -->
     <script src="/static/js/replay.js" defer></script>
 </head>
 <body>
+    <style>
+        #payload-container div i {
+            background-color: #FFD800;
+            color:#373737;
+        }
+
+        #replay-speed {
+            background-color: #FFD800;
+            color:#373737;
+            border: none;
+            text-align: center;
+            font-size: 36px;
+            font-weight: bold;
+            width: 60px;
+            outline: none;
+        }
+
+        /* Chrome, Safari, Edge, Opera */
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+        }
+
+        /* Firefox */
+        input[type=number] {
+            -moz-appearance: textfield;
+            font-style: italic;
+        }
+
+        #command-input {
+            cursor: not-allowed;
+        }
+
+        .section {
+            border: 3px solid #ffd90068;
+        }
+
+        #disclaimer {
+            background-color: royalblue;
+            color: white;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 25px;
+        }
+
+        #disclaimer p {
+            text-align: center;
+            margin-top: 3px;
+            font-weight: bold;
+        }
+    </style>
+
     <script>
         const preloadedData = {{ data | tojson }};
     </script>
@@ -18,22 +74,22 @@
         <!-- Background -->
         <div class="background"></div>
 
+        <div id="disclaimer"><p>THIS IS A REPLAY WITH NO LIVE PLOTTING</p></div>
+
         <!-- Video Feed Section -->
         <div id="graphics" class="section graphics">
-            <img>
+            <img src="/static/img/blank.svg">
         </div>
 
         <!-- Payload Status Section -->
         <div id="payload-container" class="section payload-container">
-                <div class="status-header"><i>REPLAY at 500ms</i></div>
+                <div class="status-header"><i>&nbsp;REPLAY at <input type="number" id="replay-speed" value="500" min="1" max="999" step="1">ms</i></div>
                 <div class="status-box"><img src="/static/img/secured-payload.svg" draggable="false"></div>
         </div>
 
         <!-- Telemetry data Section -->
         <div id="telemetry-data" class="section telemetry-data">
-            <div id="console">
-                <p>Loading data...</p>
-            </div>
+            <div id="console"></div>
             <input id="command-input" type="text" placeholder="Replaying past event" disabled>
         </div>
 

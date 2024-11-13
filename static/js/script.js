@@ -124,6 +124,12 @@ function sendSerialCommand(command) {
 
 function serialRead(data) {
     // Parse the incoming data string into JSON
+
+    if (!data.startsWith("S")) {
+        console.log("Invalid data:", data);
+        return;
+    }
+    
     const telemetryData = parseTelemetryData(data);
 
     // Log or display the parsed JSON data
@@ -205,29 +211,29 @@ function playStageCompleteSound() {
 
 
 // TEST CODE, REMOVE BEFORE FLIGHT
-document.addEventListener("DOMContentLoaded", () => {
-    setup();
+// document.addEventListener("DOMContentLoaded", () => {
+//     setup();
 
-    // Test the serialRead function
-    const testData1 = "S37.7749,-122.4194,0.0,1013.2,10.5,20.6,30.7,25.3,0,0,0,0";
-    const testData2 = "S37.7749,-122.4194,1000.0,1013.2,10.5,20.6,30.7,25.3,1,0,0,0";
-    const testData3 = "S37.7749,-122.4194,990.0,1013.2,10.5,20.6,30.7,25.3,1,1,0,0";
-    const testData4 = "S37.7749,-122.4194,850.5,1013.2,10.5,20.6,30.7,25.3,1,1,1,0";
-    const testData5 = "S37.7749,-122.4194,10.5,1013.2,10.5,20.6,30.7,25.3,1,1,1,1";
+//     // Test the serialRead function
+//     const testData1 = "S37.7749,-122.4194,0.0,1013.2,10.5,20.6,30.7,25.3,0,0,0,0";
+//     const testData2 = "S37.7749,-122.4194,1000.0,1013.2,10.5,20.6,30.7,25.3,1,0,0,0";
+//     const testData3 = "S37.7749,-122.4194,990.0,1013.2,10.5,20.6,30.7,25.3,1,1,0,0";
+//     const testData4 = "S37.7749,-122.4194,850.5,1013.2,10.5,20.6,30.7,25.3,1,1,1,0";
+//     const testData5 = "S37.7749,-122.4194,10.5,1013.2,10.5,20.6,30.7,25.3,1,1,1,1";
     
     
-    serialRead(testData1);
+//     serialRead(testData1);
     
-    setTimeout(() => {
-        serialRead(testData2);
-        setTimeout(() => {
-            serialRead(testData3);
-            setTimeout(() => {
-                serialRead(testData4);
-                setTimeout(() => {
-                    serialRead(testData5);
-                }, 3000);
-            }, 3000);
-        }, 3000);
-    }, 3000);
-});
+//     setTimeout(() => {
+//         serialRead(testData2);
+//         setTimeout(() => {
+//             serialRead(testData3);
+//             setTimeout(() => {
+//                 serialRead(testData4);
+//                 setTimeout(() => {
+//                     serialRead(testData5);
+//                 }, 3000);
+//             }, 3000);
+//         }, 3000);
+//     }, 3000);
+// });

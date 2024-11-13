@@ -2,17 +2,24 @@ let portButton;
 let telemetryReadings;
 let payloadStatus;
 let statusItems;
+let speedInput;
 let replayID;
+let replaySpeed = 500;
 
 function setup() {
     // Assign elements
     telemetryReadings = document.getElementById("console");
     payloadStatus = document.querySelector(".status-header");
     statusItems = document.querySelectorAll(".checklist-item");
+    speedInput = document.getElementById("replay-speed");
     commandInput = document.getElementById("command-input");
     replayID = Math.floor(Math.random() * 1000);
     
     handlePreloadedData(preloadedData);
+
+    speedInput.addEventListener("change", function (event) {
+        replaySpeed = event.target.value;
+    });
     
 }
 
@@ -22,18 +29,20 @@ function handlePreloadedData(data, idx = 0) {
             serialRead(data[idx]);
             handlePreloadedData(data, idx + 1);
         }
-    }, 500);
+    }, replaySpeed);
 }
 
 
 function serialRead(data) {
     // Parse the incoming data string into JSON
+    const unmodifiedTelemetryData = structuredClone(data);
+    delete unmodifiedTelemetryData.timestamp;
     const telemetryData = data;
     telemetryData.replay_id = replayID.toString();
 
     // Log or display the parsed JSON data
-    console.log("Parsed Telemetry Data:", telemetryData);
-    telemetryReadings.innerHTML += "<p>" + JSON.stringify(telemetryData, null, 2) + "</p><br>";
+    // console.log("Parsed Telemetry Data:", telemetryData);
+    telemetryReadings.innerHTML += "<p>" + JSON.stringify(unmodifiedTelemetryData, null, 2) + "</p><br>";
     telemetryReadings.scrollTop = telemetryReadings.scrollHeight;
 
     // Upload data to server at /api/telemetry

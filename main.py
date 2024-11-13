@@ -144,7 +144,7 @@ def replay():
     plt.tight_layout()  # Adjust layout to prevent label cutoff
 
     # Save the plot with the specified DPI to maintain quality
-    plt.savefig('static/altitude_plot_replay.png', dpi=100, transparent=True)
+    plt.savefig('static/altitude_plot_replay.png', dpi=200, transparent=True)
     plt.close()
 
     # Return the URL of the image
