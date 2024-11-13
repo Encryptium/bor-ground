@@ -104,19 +104,20 @@ def replay():
     print(data)
     
     # Ensure the telemetry directory exists
-    os.makedirs('temp_replay', exist_ok=True)
+    os.makedirs('replay_data', exist_ok=True)
     
     timestamp = data['timestamp']
+    final_timestamp = data['final_timestamp']
 
     # Write data to a file named with today's date
-    with open(f'temp_replay/{data['replay_id']}.txt', 'a') as f:
+    with open(f'replay_data/{data['replay_id']}.txt', 'a') as f:
         data.pop('timestamp')
         f.write(timestamp + ' ' + str(data) + '\n')
 
     # Initialize lists for altitude and time data
     altitudes = []
     times = []
-    with open(f'temp_replay/{data['replay_id']}.txt', 'r') as f:
+    with open(f'replay_data/{data['replay_id']}.txt', 'r') as f:
         for line in f:
             # Assume data is stored as '[timestamp] {"altitude": value, ...}'
             if 'altitude' in line:
@@ -129,23 +130,32 @@ def replay():
 
     # Set plot style for a dark theme
     plt.style.use('dark_background')
-    
+
     # Set figure size for an 801x440 aspect ratio (8.01x4.4 inches at 100 DPI)
     fig, ax = plt.subplots(figsize=(8.01, 4.4))
-    
+
     # Plot altitude vs time
     ax.plot(times, altitudes, color='white')  # Line color set to white
     ax.set_xlabel('Time', color='white')         # X-axis label color set to white
     ax.set_ylabel('Altitude', color='white')     # Y-axis label color set to white
     ax.set_title('Altitude vs Time', color='white')  # Title color set to white
-    ax.tick_params(axis='x', colors='white')     # X-axis tick labels color set to white
     ax.tick_params(axis='y', colors='white')     # Y-axis tick labels color set to white
-    plt.xticks(rotation=45)  # Rotate x-axis labels for better readability
-    plt.tight_layout()  # Adjust layout to prevent label cutoff
+
+    # Calculate the midpoint index
+    mid_index = len(times) // 2
+
+    # Only show the first, midpoint, and last timestamp on the x-axis
+    ax.set_xticks([times[0], times[mid_index], times[-1]])
+    ax.set_xticklabels([times[0], times[mid_index], times[-1]], rotation=15, color='white')
 
     # Save the plot with the specified DPI to maintain quality
+    plt.tight_layout()
     plt.savefig('static/altitude_plot_replay.png', dpi=200, transparent=True)
     plt.close()
+
+    # remove temporary file after replay is done
+    if timestamp[1:-1] == final_timestamp:
+        os.remove(f'replay_data/{data['replay_id']}.txt')
 
     # Return the URL of the image
     return {'url': '/static/altitude_plot_replay.png'}

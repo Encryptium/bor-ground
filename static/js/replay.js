@@ -48,6 +48,7 @@ function serialRead(data) {
     delete unmodifiedTelemetryData.timestamp;
     const telemetryData = data;
     telemetryData.replay_id = replayID.toString();
+    telemetryData.final_timestamp = preloadedData[preloadedData.length - 1].timestamp.replace(/\[/g, "").replace(/\]/g, "");
 
     // Log or display the parsed JSON data
     // console.log("Parsed Telemetry Data:", telemetryData);
