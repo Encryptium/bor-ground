@@ -303,7 +303,7 @@ while True:
 		# fd.write(data) # log data locally
 
 
-		time.sleep(1)
+		time.sleep(0.5)
 
 
 
