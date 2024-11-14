@@ -2,18 +2,21 @@
 This runs on the Raspberry Pi Pico
 
 Needs Work:
- * Driving motors using release_instrument() function
+ * Driving servos using release_instrument() function
  * Receiving command to move arm
  * Implement camera operation
-   - b64
-   - halt telemetry
- *
+   - b64 encoding
+ * Testing for radio connection and compatability with GS
 
 Already Done:
  * Send telemetry data via radio
+ * Phase implementation
+ * Halt telemetry
+ * is_landed() method for reliability
  
 Important info:
  ! For other pins clarification, refer to the paper schematic
+ ! Open pins = 2, 3, 6, 7
  ! REQUIRES connection to battery to run properly
 """
 
@@ -110,11 +113,14 @@ fd = open('samples.dat','w') # log all data locally
 start = time.time()
 
 # status variables
+reboot = False
 launched = False
 target_altitude_reached = False
 instrument_released = False
 
 TARGET_ALTITUDE = 1000 # target altitude in meters
+
+prev_alt = 0
 
 parachute_alt = 100 # parachute releases at 100m
 parachute_ready = False
@@ -128,6 +134,44 @@ latch_released = False
 arm_active = False
 arm_released = False
 
+def send_message(msg):
+	data = "S" + msg
+	xbee.write(data.encode())
+
+# FOR DEBUGGING ONLY
+# Don't use for launch
+def force_phase(target_phase):
+	if phase == "launch":
+		launched = True
+		send_message("[OK] Forced phase: launch")
+	elif phase == "reach_target_altitude":
+		target_altitude_reached = True
+		parachute_ready = True
+		latch_ready = True
+		send_message("[OK] Forced phase: reach_target_altitude")
+	elif phase == "deploy":
+		deploy()
+		send_message("[OK] Forced phase: deploy")
+	elif phase == "release_instrument":
+		release_instrument()
+		send_message("[OK] Forced phase: release_instrument")
+	else:
+		send_message("[ERR] Phase not defined")
+
+
+def read_system_commands():
+	command = xbee.read()
+	command_str = command-decode(utf-8).strip()
+
+	if command_str == "system -r":                  # check reboot status
+		reboot = True
+	elif "system -p " in command_str:               # check for forced phase
+		target_phase = command_str.split('-p')[1].strip()
+		force_phase(target_phase)
+	else:
+		msg = "[ERROR] Command not defined"
+		send_message(msg)
+
 
 def capture():
 	command = xbee.read()
@@ -136,9 +180,10 @@ def capture():
 	if command_str == "camera -c":
 		# camera capture to be implemented
 		print("camera capture waiting on implementation")
+		send_message("[ERR] Camera pending implementation")
 		pass
 	else:
-		capture()
+		capture()  # wait until command is called
 
 # moves the rover forward after command received
 def release_instrument():
@@ -153,8 +198,10 @@ def release_instrument():
 			arm.duty_ns(1500000)
 			reset_servos()
 			instrument_released = True
+			send_message("[OK] Instrument released. Starting capture.")
+			capture()
 		else:
-			release_instrument()
+			release_instrument()   # wait until command received
 
 
 # releases the parachute latch
@@ -164,9 +211,16 @@ def deploy():
 		parachute.duty_ns(1500000) # stop servo
 		parachute_released = True # report released
 
+def is_landed(current_alt):
+	if abs(current_alt - prev_alt) < 1:
+		return True
+	else: 
+		return False
 
+while True:
+		if reboot:
+			break
 
-while 1:
 		# get data from all sensors
 		alt = calcAltitude(bmp.pressure)-base
 		x = accel.xValue
@@ -215,16 +269,17 @@ while 1:
 		if alt > latch_alt:
 				latch_ready = True
 
-		if latch_ready and alt < latch_alt and not latch_released and parachute_released:
+		if is_landed(alt) and latch_ready and parachute_released and not latch_released:
+				time.sleep(5)          # wait for payload to reach the ground
 				latch.duty_ns(2000000) # release latch
-				time.sleep(2) # wait for release
+				time.sleep(2)          # wait for release
 				latch.duty_ns(1500000) # stop servo
-				latch_released = True # report released
+				latch_released = True  # report released
 
 
 		# after everything has released
 		if latch_released and parachute_released and not arm_released:
-				time.sleep(1)
+				time.sleep(2)      # wait for payload to stabilize
 				arm_active = True 
 
 
@@ -232,13 +287,15 @@ while 1:
 				release_instrument() # requires implementation
 
 
+		prev_alt = alt # save alt for ref
+		
 		# format telemetry data
 		data = 'S%0.4f,%0.4f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%i,%i,%i,%i\n' % (float(latitude), float(longitude), alt, pressure, x, y, z, temperature, int(launched), int(target_altitude_reached), int(parachute_released), int(instrument_released)) #altitude & pressure
 
 		# print(data)
 
 		# Send data to the USB serial port for local debugging
-		sys.stdout.write(data)
+		# sys.stdout.write(data)
 
 
 		xbee.write(data.encode()) # send data over radio
@@ -246,7 +303,7 @@ while 1:
 		# fd.write(data) # log data locally
 
 
-		time.sleep(0.5)
+		time.sleep(1)
 
 
 
