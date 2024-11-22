@@ -6,6 +6,9 @@
     <title>Track Active Launch</title>
     <link rel="icon" type="image/x-icon" href="/static/img/favicon.png">
     <link rel="stylesheet" href="/static/css/style.css">
+    <script
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBoubzy2hDuvUC9KL5yLmahzVF1IGsWXx4&libraries=maps,visualization&map_ids=c53e775cd5e6be62"
+    ></script>
     <script src="/static/js/WebSerialPort.js"></script>
     <script src="/static/js/script.js" defer></script>
 
@@ -22,8 +25,9 @@
 
         <!-- Payload Status Section -->
         <div id="payload-container" class="section payload-container">
-                <div class="status-header">Payload Disconnected</div>
-                <div class="status-box"><img src="/static/img/secured-payload.svg" draggable="false"></div>
+                <!-- <div class="status-header">Payload Disconnected</div>
+                <div class="status-box"><img src="/static/img/secured-payload.svg" draggable="false"></div> -->
+                <div id="map"></div>
                 <button id="port-button">Connect</button>
         </div>
 
@@ -67,6 +71,48 @@
         </div>
     </div>
       
+
+    
+    <script>
+      function initMap() {
+        const map = new google.maps.Map(document.getElementById("map"), {
+          center: { lat: 34.0522, lng: -118.2437 }, // Los Angeles coordinates
+          zoom: 13,
+          mapId: "c53e775cd5e6be62",
+          mapTypeId: "roadmap",
+          disableDefaultUI: true, // Disables all default UI controls
+        });
+
+        // Create a marker using the AdvancedMarkerElement
+        const marker = new google.maps.marker.AdvancedMarkerElement({
+          map: map,
+          position: { lat: 34.0522, lng: -118.2437 },
+          title: "Los Angeles",
+        });
+
+        // Example marker data with colors
+        const markerData = [
+            { position: { lat: 34.0522, lng: -118.2437 }, color: "red" },
+            { position: { lat: 34.0622, lng: -118.2537 }, color: "blue" },
+            { position: { lat: 34.0422, lng: -118.2337 }, color: "green" },
+        ];
+
+        // Loop through the marker data and create colored dot markers
+        markerData.forEach((data) => {
+            new google.maps.Marker({
+                position: data.position,
+                map: map,
+                icon: {
+                    path: google.maps.SymbolPath.CIRCLE, // Use a circle shape
+                    scale: 8, // Size of the dot
+                    fillColor: data.color, // Fill color for the dot
+                    fillOpacity: 1, // Opacity of the fill
+                    strokeWeight: 0, // No border
+                },
+            });
+        });
+        }
+    </script>
       
     
 </body>

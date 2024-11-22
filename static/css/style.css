@@ -70,6 +70,17 @@ body, html {
     right: 50px;
 }
 
+.payload-container #map {
+    width: calc(100% - 3rem);
+    height: calc(100% - 3rem);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 25px;
+    outline: none;
+}
+
 .status-container {
     position: relative;
     width: 100%;

@@ -1,3 +1,4 @@
+let map;
 let portButton;
 let telemetryReadings;
 let webserial;
@@ -180,10 +181,15 @@ function serialRead(data) {
         }
         statusItems[0].querySelector(".status-indicator").classList.add("active");
     }
+
+    addMarker(telemetryData);
 }
 
 // Run setup after the page has loaded
-document.addEventListener("DOMContentLoaded", setup);
+document.addEventListener("DOMContentLoaded", () => {
+    setup();
+    initMap();
+});
 
 function parseTelemetryData(data) {
     data = data.trim().substring(1);
@@ -237,3 +243,51 @@ function playStageCompleteSound() {
 //         }, 3000);
 //     }, 3000);
 // });
+
+
+// Initialize the map
+function initMap() {
+    map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 38.9072, lng: -77.0369 }, // Los Angeles coordinates
+        zoom: 16,
+        mapId: "c53e775cd5e6be62",
+        mapTypeId: "roadmap",
+        disableDefaultUI: true, // Disables all default UI controls
+    });
+}
+
+// Color gradient function based on altitude
+function getColorByAltitude(altitude) {
+    const minAltitude = 0;
+    const maxAltitude = 2000; // Adjust this range based on your data
+    const normalizedAltitude = Math.min(Math.max((altitude - minAltitude) / (maxAltitude - minAltitude), 0), 1);
+
+    const startColor = [0, 0, 255]; // Blue (low altitude)
+    const endColor = [255, 0, 0]; // Red (high altitude)
+
+    const r = Math.round(startColor[0] + (endColor[0] - startColor[0]) * normalizedAltitude);
+    const g = Math.round(startColor[1] + (endColor[1] - startColor[1]) * normalizedAltitude);
+    const b = Math.round(startColor[2] + (endColor[2] - startColor[2]) * normalizedAltitude);
+
+    return `rgb(${r},${g},${b})`;
+}
+
+// Add marker to map based on telemetry data
+function addMarker(telemetryData) {
+    const { latitude, longitude, altitude } = telemetryData;
+
+    new google.maps.Marker({
+        position: { lat: latitude, lng: longitude },
+        map: map,
+        icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 8, // Size of the dot
+            fillColor: getColorByAltitude(altitude), // Gradient color based on altitude
+            fillOpacity: 1,
+            strokeWeight: 0,
+        },
+    });
+
+    // Optionally pan the map to the new marker
+    map.panTo({ lat: latitude, lng: longitude });
+}

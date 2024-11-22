@@ -6,8 +6,10 @@
     <title>Replay Previous Launch</title>
     <link rel="icon" type="image/x-icon" href="/static/img/favicon.png">
     <link rel="stylesheet" href="/static/css/style.css">
+    <script
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBoubzy2hDuvUC9KL5yLmahzVF1IGsWXx4&libraries=maps,visualization&map_ids=c53e775cd5e6be62"
+    ></script>
     <script src="/static/js/WebSerialPort.js"></script>
-    <!-- <script src="/static/js/script.js" defer></script> -->
     <script src="/static/js/replay.js" defer></script>
 </head>
 <body>
@@ -105,7 +107,8 @@
         <!-- Payload Status Section -->
         <div id="payload-container" class="section payload-container">
                 <div class="status-header"><i>&nbsp;REPLAY&nbsp;</i> at <input type="number" id="replay-speed" value="500" min="200" max="999" step="1">ms</div>
-                <div class="status-box"><img src="/static/img/secured-payload.svg" draggable="false"></div>
+                <!-- <div class="status-box"><img src="/static/img/secured-payload.svg" draggable="false"></div> -->
+                <div id="map"></div>
                 <button id="pause-button"><img src="/static/img/pause.svg"></button>
         </div>
 
