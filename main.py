@@ -29,6 +29,9 @@ def analyze():
         # get length of file
         telemetry_events.append({"duration": len(open(f'telemetry/{file}', 'r').readlines()), "date": file.split('.')[0]})
 
+    # sort telemetry_events by date
+    telemetry_events = sorted(telemetry_events, key=lambda x: x['date'], reverse=True)
+
     return render_template('records.html', events=telemetry_events)
 
 @app.route('/analyze/<date>')
