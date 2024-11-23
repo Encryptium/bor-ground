@@ -219,4 +219,5 @@ body, html {
     font-weight: 600;
     z-index: 99;
     cursor: pointer;
+    outline: none;
 }

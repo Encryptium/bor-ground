@@ -4,7 +4,6 @@ let payloadStatus;
 let statusItems;
 let speedInput;
 let pauseButton;
-let replayID;
 let replaySpeed = 500;
 let isPaused = false; 
 let currentIdx = 0; // Track the current index
@@ -17,7 +16,6 @@ function setup() {
     statusItems = document.querySelectorAll(".checklist-item");
     speedInput = document.getElementById("replay-speed");
     pauseButton = document.getElementById("pause-button");
-    replayID = Math.floor(Math.random() * 1000);
 
     bufferedData = structuredClone(preloadedData); // Load all data at start
     handlePreloadedData(currentIdx); // Start replay from the beginning
@@ -60,7 +58,7 @@ function serialRead(data) {
     const unmodifiedTelemetryData = structuredClone(data);
     delete unmodifiedTelemetryData.timestamp;
     const telemetryData = data;
-    telemetryData.replay_id = replayID.toString();
+    telemetryData.replay_id = replayID;
     telemetryData.final_timestamp = bufferedData[bufferedData.length - 1].timestamp.replace(/\[/g, "").replace(/\]/g, "");
 
     // Log or display the parsed JSON data

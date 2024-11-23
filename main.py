@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for
 import datetime
 import matplotlib.pyplot as plt
 import os
+import uuid
 
 app = Flask(__name__)
 
@@ -43,7 +44,7 @@ def analyze_date(date):
             timestamp = line.split(']')[0] + ']'
             data.append({"timestamp": timestamp, **eval(line.split(']')[1].strip())})
 
-    return render_template('analyze.html', data=data)
+    return render_template('analyze.html', data=data, replay_id=uuid.uuid4().hex)
 
 @app.route('/api/telemetry', methods=['POST'])
 def telemetry():
@@ -114,7 +115,6 @@ def telemetry():
 @app.route('/api/replay', methods=['POST'])
 def replay():
     data = request.json
-    print(data)
     
     # Ensure the telemetry directory exists
     os.makedirs('replay_data', exist_ok=True)

@@ -5,6 +5,7 @@ let webserial;
 let statusItems;
 let commandInput;
 let port;
+let reader;
 let isConnected = false;
 
 function setup() {
@@ -72,7 +73,7 @@ async function openPort() {
         isConnected = true;
         console.log("Serial port opened.");
 
-        const reader = port.readable.getReader();
+        reader = port.readable.getReader();
         readData(reader); // Start handling data asynchronously
         return true;
     } catch (error) {
@@ -101,9 +102,11 @@ async function readData(reader) {
 
 async function closePort() {
     if (port && port.readable) {
+        reader.releaseLock();
         await port.readable.cancel();
     }
     if (port) {
+        reader.releaseLock();
         await port.close();
         isConnected = false;
         console.log("Serial port closed.");
