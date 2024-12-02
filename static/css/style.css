@@ -110,7 +110,7 @@ body, html {
 /* Telemetry data */
 .telemetry-data {
     width: 881px;
-    height: 25%;
+    height: calc(25% + 12px);
     bottom: 50px;
     left: 50px;
     padding: 50px;

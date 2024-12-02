@@ -67,12 +67,14 @@ def reset_servos():
 		time.sleep(2)
 		arm.duty_ns(1500000)
 
-def calcAltitude(press):
+def calcAltitude(press, unit='ft'):
 		a = press / 101325.0
 		b = 1/5.25588
 		c = math.pow(a,b)
 		c = 1.0 - c
 		c = c / 0.0000225577
+		if unit == 'ft':
+				c = c * 3.28084
 		return c
 
 def convert_coordinates(sections):
@@ -141,18 +143,18 @@ def send_message(msg):
 # FOR DEBUGGING ONLY
 # Don't use for launch
 def force_phase(target_phase):
-	if phase == "launch":
+	if target_phase == "launch":
 		launched = True
 		send_message("[OK] Forced phase: launch")
-	elif phase == "reach_target_altitude":
+	elif target_phase == "reach_target_altitude":
 		target_altitude_reached = True
 		parachute_ready = True
 		latch_ready = True
 		send_message("[OK] Forced phase: reach_target_altitude")
-	elif phase == "deploy":
+	elif target_phase == "deploy":
 		deploy()
 		send_message("[OK] Forced phase: deploy")
-	elif phase == "release_instrument":
+	elif target_phase == "release_instrument":
 		release_instrument()
 		send_message("[OK] Forced phase: release_instrument")
 	else:
@@ -161,7 +163,7 @@ def force_phase(target_phase):
 
 def read_system_commands():
 	command = xbee.read()
-	command_str = command-decode(utf-8).strip()
+	command_str = command.decode("utf-8").strip()
 
 	if command_str == "system -r":                  # check reboot status
 		reboot = True
@@ -175,7 +177,7 @@ def read_system_commands():
 
 def capture():
 	command = xbee.read()
-	command_str = command.decode(utf-8).strip()
+	command_str = command.decode("utf-8").strip()
 
 	if command_str == "camera -c":
 		# camera capture to be implemented
@@ -188,7 +190,7 @@ def capture():
 # moves the rover forward after command received
 def release_instrument():
 		command = xbee.read()
-		command_str = command.decode(utf-8).strip()
+		command_str = command.decode("utf-8").strip()
 
 		if command_str == "arm -r":
 			arm.duty_ns(2000000)
@@ -230,6 +232,8 @@ while True:
 		roty = mpu.gyro.y
 		rotz = mpu.gyro.z
 		mpu_temp = mpu.temperature
+
+		# read gnss data
 		length = gps_module.any()
 		if length > 0:
 				data = gps_module.read(length)
@@ -240,8 +244,8 @@ while True:
 		longitude = convert_coordinates(gps.longitude)
 
 		if latitude is None or longitude is None:
-				latitude = 0.0
-				longitude = 0.0
+				latitude = 38.9072    # realistic placeholder values instead of 0, 0
+				longitude = -77.0369
 
 		#pressure = round(bmp.pressure*9.8692*0.000001, 2) #for atm conversion
 		pressure = bmp.pressure
@@ -290,12 +294,12 @@ while True:
 		prev_alt = alt # save alt for ref
 		
 		# format telemetry data
-		data = 'S%0.4f,%0.4f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%i,%i,%i,%i\n' % (float(latitude), float(longitude), alt, pressure, x, y, z, temperature, int(launched), int(target_altitude_reached), int(parachute_released), int(instrument_released)) #altitude & pressure
+		data = 'S%0.4f,%0.4f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%i,%i,%i,%i\n' % (float(latitude), float(longitude), alt, pressure, x, y, z, rotx, roty, rotz, temperature, int(launched), int(target_altitude_reached), int(parachute_released), int(instrument_released)) #altitude & pressure
 
 		# print(data)
 
 		# Send data to the USB serial port for local debugging
-		# sys.stdout.write(data)
+		sys.stdout.write(data)
 
 
 		xbee.write(data.encode()) # send data over radio

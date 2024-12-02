@@ -138,6 +138,7 @@ function serialRead(data) {
     }
     
     const telemetryData = parseTelemetryData(data);
+    console.log(telemetryData);
 
 
     if (Object.values(telemetryData).some(value => isNaN(value))) {
@@ -210,14 +211,17 @@ function parseTelemetryData(data) {
         longitude: parseFloat(values[1]),
         altitude: parseFloat(values[2]),
         pressure: parseFloat(values[3]),
-        x_rotation: parseFloat(values[4]),
-        y_rotation: parseFloat(values[5]),
-        z_rotation: parseFloat(values[6]),
-        temperature: parseFloat(values[7]),
-        launched: parseInt(values[8], 10),
-        target_altitude_reached: parseInt(values[9], 10),
-        parachute_released: parseInt(values[10], 10),
-        instrument_released: parseInt(values[11], 10),
+        x_acceleration: parseFloat(values[4]),
+        y_acceleration: parseFloat(values[5]),
+        z_acceleration: parseFloat(values[6]),
+        x_rotation: parseFloat(values[7]),
+        y_rotation: parseFloat(values[8]),
+        z_rotation: parseFloat(values[9]),
+        temperature: parseFloat(values[10]),
+        launched: parseInt(values[11]),
+        target_altitude_reached: parseInt(values[12]),
+        parachute_released: parseInt(values[13]),
+        instrument_released: parseInt(values[14]),
     };
 }
 

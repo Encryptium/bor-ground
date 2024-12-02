@@ -89,11 +89,14 @@ function serialRead(data) {
 function updateStatusIndicators(telemetryData) {
     if (telemetryData.instrument_released) {
         activateStatusIndicator(3);
-    } else if (telemetryData.parachute_released) {
+    }
+    if (telemetryData.parachute_released) {
         activateStatusIndicator(2);
-    } else if (telemetryData.target_altitude_reached) {
+    }
+    if (telemetryData.target_altitude_reached) {
         activateStatusIndicator(1);
-    } else if (telemetryData.launched) {
+    }
+    if (telemetryData.launched) {
         activateStatusIndicator(0);
     }
 }
