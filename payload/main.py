@@ -42,7 +42,7 @@ latch = PWM(Pin(2)) # available pwms: 2, 3, 6, 7
 arm = PWM(Pin(6))
 
 
-# Set the frequency of the PWM signal (50 Hz for servos)
+# frequency of PWM signal (50 Hz servos)
 latch.freq(50)
 arm.freq(50)
 
