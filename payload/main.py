@@ -31,30 +31,32 @@ import math
 
 ARM_NEUTRAL_NS = 1500000
 ARM_TARGET_NS = 2500000
-LATCH_NEUTRAL_NS = 1500000
-LATCH_TARGET_NS = 2500000
+LATCH_NEUTRAL_NS = 2500000
+LATCH_TARGET_NS = 1000000
 
 # define all radio(radio), gps, and latch and parachute servos
 radio = UART(1,baudrate=9600,rx=Pin(5),tx=Pin(4),timeout=3000)
 gps_module = UART(0, baudrate=9600, tx=Pin(0), rx=Pin(1))
 latch = PWM(Pin(2)) # available pwms: 2, 3, 6, 7
 # parachute = PWM(Pin(3))
-arm = PWM(Pin(6))
+arm = PWM(Pin(3))
 
 
-# frequency of PWM signal (50 Hz servos)
+# Set the frequency of the PWM signal (50 Hz for servos)
 latch.freq(50)
 arm.freq(50)
+
 
 # 0 degrees using 500000
 # 90 degrees using 1500000
 # 180 degrees using 2500000
 
-t = Pin(10,Pin.OUT)
-t.low()
-time.sleep(.001)
-t = Pin(10,Pin.IN)
-bus = I2C(0,sda=Pin(20),scl=Pin(21))
+#t = Pin(10,Pin.OUT)
+#t.low()
+#time.sleep(.001)
+#t = Pin(10,Pin.IN)
+#bus = I2C(0,sda=Pin(20),scl=Pin(21)) # old bus doesn't work anymore for some reason (probably issue with pi pico)
+bus = I2C(0,sda=Pin(8),scl=Pin(9))
 
 def reset_servos():
     latch.duty_ns(LATCH_NEUTRAL_NS)
@@ -97,12 +99,12 @@ bmp = BMP280(bus)
 for i in range(5):
     base = calcAltitude(bmp.pressure)
     time.sleep(0.2)
-accel = ADXL345(bus) # accelerometer
+#accel = ADXL345(bus) # accelerometer
 mpu = MPU6050(bus) # rotation sensor mpu
 
 gps = MicropyGPS(-5)
 samples = 0
-fd = open('samples.dat','w') # log all data locally
+# fd = open('samples.dat','w') # log all data locally
 
 reset_servos() # set servos to default position
 start = time.time()
@@ -207,6 +209,14 @@ def is_landed(current_alt):
         return False
 
 
+latch.duty_ns(LATCH_TARGET_NS)
+time.sleep(2)
+reset_servos()
+
+arm.duty_ns(ARM_TARGET_NS)
+time.sleep(2)
+reset_servos()
+
 
 
 
@@ -218,15 +228,21 @@ while True:
     alt = calcAltitude(bmp.pressure)-base
 
     # get units in meters per second squared
-    x = accel.xValue * 9.81
-    y = accel.yValue * 9.81
-    z = accel.zValue * 9.81
+    #x = accel.xValue * 9.81
+    #y = accel.yValue * 9.81
+    #z = accel.zValue * 9.81
+    x = 0
+    y = 0
+    z = 0
+
 
     # imu data
     rotx = mpu.gyro.x
     roty = mpu.gyro.y
     rotz = mpu.gyro.z
+
     mpu_temp = mpu.temperature
+
 
     # read gnss data
     length = gps_module.any()
@@ -239,8 +255,8 @@ while True:
     longitude = convert_coordinates(gps.longitude)
 
     if latitude is None or longitude is None:
-        latitude = 38.9072    # realistic placeholder values instead of 0, 0
-        longitude = -77.0369
+        latitude = 0    
+        longitude = 0
 
     #pressure = round(bmp.pressure*9.8692*0.000001, 2) #for atm conversion
     pressure = bmp.pressure
@@ -297,6 +313,7 @@ while True:
 
 
     time.sleep(0.5)
+
 
 
 
