@@ -25,6 +25,7 @@ from bmp280 import BMP280
 from adxl345 import ADXL345
 from mpu6050 import MPU6050
 from micropyGPS import MicropyGPS
+from camera_test import *
 import sys
 import time
 import math
@@ -32,19 +33,26 @@ import math
 ARM_NEUTRAL_NS = 1500000
 ARM_TARGET_NS = 2500000
 LATCH_NEUTRAL_NS = 2500000
-LATCH_TARGET_NS = 1000000
+LATCH_TARGET_NS = 2000000
 
 # define all radio(radio), gps, and latch and parachute servos
 radio = UART(1,baudrate=9600,rx=Pin(5),tx=Pin(4),timeout=3000)
 gps_module = UART(0, baudrate=9600, tx=Pin(0), rx=Pin(1))
 latch = PWM(Pin(2)) # available pwms: 2, 3, 6, 7
-# parachute = PWM(Pin(3))
+parachute = PWM(Pin(7))
 arm = PWM(Pin(3))
+
+#radio.write("+++")  # Enter command mode
+#time.sleep(1)
+#radio.write("ATID049C\r")
+##radio.write("ATWR")
+#radio.write("ATCN")
 
 
 # Set the frequency of the PWM signal (50 Hz for servos)
 latch.freq(50)
 arm.freq(50)
+parachute.freq(50)
 
 
 # 0 degrees using 500000
@@ -61,6 +69,10 @@ bus = I2C(0,sda=Pin(8),scl=Pin(9))
 def reset_servos():
     latch.duty_ns(LATCH_NEUTRAL_NS)
     arm.duty_ns(ARM_NEUTRAL_NS)
+    
+    parachute.duty_ns(1000000) # reset chute
+    time.sleep(2.5) # wait for release
+    parachute.duty_ns(1500000)
     time.sleep(2) # allow time to reset before yielding to any other action
 
 def calcAltitude(press, unit='ft'):
@@ -104,7 +116,6 @@ mpu = MPU6050(bus) # rotation sensor mpu
 
 gps = MicropyGPS(-5)
 samples = 0
-# fd = open('samples.dat','w') # log all data locally
 
 reset_servos() # set servos to default position
 start = time.time()
@@ -120,11 +131,13 @@ state = {
     "arm_active": False,
     "arm_released": False,
     "prev_alt": 0,
+    "parachute_ready": False,
+    "parachute_released": False,
 }
 
 TARGET_ALTITUDE = 1000 # target altitude in meters
-
-latch_alt = 15 # latch releases at 15m
+parachute_alt = 300
+latch_alt = 15 # latch releases at 15ft
 
 
 
@@ -132,8 +145,7 @@ def send_message(msg):
     data = "S" + msg
     radio.write(data.encode())
 
-# FOR DEBUGGING ONLY
-# Don't use for launch
+
 def force_phase(target_phase):
     if target_phase == "launch":
         state["launched"] = True
@@ -168,13 +180,14 @@ def read_system_commands():
 
 
 def capture():
+    save_photo()
     while True:
         command = radio.readline()
         if command:
             command_str = command.decode("utf-8").strip()
             if command_str.strip() == "camera -c":
-                print("camera capture waiting on implementation")
-                send_message("[ERR] Camera pending implementation")
+                save_photo()
+                
                 break  # Exit after handling the command
 
 
@@ -187,6 +200,14 @@ def release_latch():
 
 # moves the rover forward after command received
 def release_instrument():
+    arm.duty_ns(ARM_TARGET_NS)
+    state["arm_active"] = False  # disable after movement complete
+    state["arm_released"] = True  # report released
+    time.sleep(5)  # give ample time from task end to reset position
+    reset_servos()
+    state["instrument_released"] = True
+    send_message("[OK] Instrument released. Starting capture.")
+    capture()
     while True:  # Keep checking for the command
         command = radio.readline()
         if command:
@@ -200,7 +221,6 @@ def release_instrument():
                 state["instrument_released"] = True
                 send_message("[OK] Instrument released. Starting capture.")
                 capture()
-                break  # exit the loop after successful execution
 
 def is_landed(current_alt):
     if abs(current_alt - state["prev_alt"]) < 5: # to account for systemic fluctuations
@@ -208,14 +228,6 @@ def is_landed(current_alt):
     else: 
         return False
 
-
-latch.duty_ns(LATCH_TARGET_NS)
-time.sleep(2)
-reset_servos()
-
-arm.duty_ns(ARM_TARGET_NS)
-time.sleep(2)
-reset_servos()
 
 
 
@@ -266,6 +278,7 @@ while True:
 
     if alt > TARGET_ALTITUDE:
         state["target_altitude_reached"] = True
+        state["parachute_ready"] = True
 
 
     # listen for alt below 50 ft
@@ -274,12 +287,19 @@ while True:
 
     if is_landed(alt) and state["latch_ready"] and not state["latch_released"]:
         release_latch()
+        
+        
+    if state["parachute_ready"] and alt < parachute_alt and not state["parachute_released"]:
+        parachute.duty_ns(2000000) # release chute
+        time.sleep(2.5) # wait for release
+        parachute.duty_ns(1500000) # stop servo
+        state["parachute_released"] = True # report released
 
 
     # after everything has released
     if state["latch_released"] and not state["arm_released"]:
         time.sleep(2)      # wait for payload to stabilize
-        state["arm_active"] = True 
+        state["arm_active"] = True
 
 
     if state["arm_active"]:
@@ -307,7 +327,7 @@ while True:
         int(state["instrument_released"]),
     )
 
-    # Send data to the USB serial port for local debugging
+
     sys.stdout.write(data)
     radio.write(data.encode()) # send data over radio
 
