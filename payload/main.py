@@ -1,23 +1,14 @@
 """
-This runs on the Raspberry Pi Pico
+The code has been updated to reflect the event rule changes.
 
-Needs Work:
- * Driving servos using release_instrument() function
- * Receiving command to move arm
- * Implement camera operation
-   - b64 encoding
- * Testing for radio connection and compatability with GS
+Rule Changes for 2025:
 
-Already Done:
- * Send telemetry data via radio
- * Phase implementation
- * Halt telemetry
- * is_landed() method for reliability
- 
-Important info:
- ! For other pins clarification, refer to the paper schematic
- ! Open pins = 2, 3, 6, 7
- ! REQUIRES connection to battery to run properly
+1. The telemetry only needs to include: altitude, acceleration, payload temperature, and battery voltage (NO GPS/pressure/rotation).
+2. The rover must have commands sent in one string
+3. The rover must pick up TBD grams of sand
+4. Rover must have REALTIME video feed
+5. The container is to be opened by hand (gloved)
+
 """
 
 from machine import I2C, UART,Pin, PWM
@@ -28,40 +19,19 @@ from micropyGPS import MicropyGPS
 import sys
 import time
 import math
+import camera
+import camera_impl
 
-ARM_NEUTRAL_NS = 1500000
-ARM_TARGET_NS = 2500000
-LATCH_NEUTRAL_NS = 2500000
-LATCH_TARGET_NS = 1000000
 
-# define all radio(radio), gps, and latch and parachute servos
-radio = UART(1,baudrate=9600,rx=Pin(5),tx=Pin(4),timeout=3000)
+xbee = UART(1,baudrate=9600,rx=Pin(5),tx=Pin(4),timeout=3000)
 gps_module = UART(0, baudrate=9600, tx=Pin(0), rx=Pin(1))
-latch = PWM(Pin(2)) # available pwms: 2, 3, 6, 7
-# parachute = PWM(Pin(3))
-arm = PWM(Pin(3))
+# available pwms: 2, 3, 6, 7
+bus = I2C(1,sda=Pin(6),scl=Pin(7))
 
-
-# Set the frequency of the PWM signal (50 Hz for servos)
-latch.freq(50)
-arm.freq(50)
-
-
-# 0 degrees using 500000
-# 90 degrees using 1500000
-# 180 degrees using 2500000
-
-#t = Pin(10,Pin.OUT)
-#t.low()
-#time.sleep(.001)
-#t = Pin(10,Pin.IN)
-#bus = I2C(0,sda=Pin(20),scl=Pin(21)) # old bus doesn't work anymore for some reason (probably issue with pi pico)
-bus = I2C(0,sda=Pin(8),scl=Pin(9))
-
-def reset_servos():
-    latch.duty_ns(LATCH_NEUTRAL_NS)
-    arm.duty_ns(ARM_NEUTRAL_NS)
-    time.sleep(2) # allow time to reset before yielding to any other action
+motor_left = Pin(10)
+motor_right = Pin(11)
+motor_left.low()
+motor_right.low()
 
 def calcAltitude(press, unit='ft'):
     a = press / 101325.0
@@ -70,27 +40,24 @@ def calcAltitude(press, unit='ft'):
     c = 1.0 - c
     c = c / 0.0000225577
     if unit == 'ft':
-        c = c * 3.28084
+            c = c * 3.28084
     return c
 
 def convert_coordinates(sections):
-        if sections[0] == 0:  # sections[0] contains the degrees
+    if sections[0] == 0:  # sections[0] contains the degrees
             return None
 
-        # sections[1] contains the minutes
-        data = sections[0] + (sections[1] / 60.0)
+    # sections[1] contains the minutes
+    data = sections[0] + (sections[1] / 60.0)
 
-        # sections[2] contains 'E', 'W', 'N', 'S'
-        if sections[2] == 'S':
+    # sections[2] contains 'E', 'W', 'N', 'S'
+    if sections[2] == 'S':
             data = -data
-        if sections[2] == 'W':
+    if sections[2] == 'W':
             data = -data
 
-        data = '{0:.6f}'.format(data)  # 6 decimal places
-        return str(data)
-
-
-
+    data = '{0:.6f}'.format(data)  # 6 decimal places
+    return str(data)
 
 
 
@@ -103,146 +70,40 @@ for i in range(5):
 mpu = MPU6050(bus) # rotation sensor mpu
 
 gps = MicropyGPS(-5)
-samples = 0
-# fd = open('samples.dat','w') # log all data locally
-
-reset_servos() # set servos to default position
-start = time.time()
-
-# status variables
-state = {
-    "reboot": False,
-    "launched": False,
-    "target_altitude_reached": False,
-    "instrument_released": False,
-    "latch_ready": False,
-    "latch_released": False,
-    "arm_active": False,
-    "arm_released": False,
-    "prev_alt": 0,
-}
-
-TARGET_ALTITUDE = 1000 # target altitude in meters
-
-latch_alt = 15 # latch releases at 15m
-
-
-
-def send_message(msg):
-    data = "S" + msg
-    radio.write(data.encode())
-
-# FOR DEBUGGING ONLY
-# Don't use for launch
-def force_phase(target_phase):
-    if target_phase == "launch":
-        state["launched"] = True
-        send_message("[OK] Forced phase: launch")
-    elif target_phase == "reach_target_altitude":
-        state["target_altitude_reached"] = True
-        state["parachute_ready"] = True
-        state["latch_ready"] = True
-        send_message("[OK] Forced phase: reach_target_altitude")
-    elif target_phase == "deploy":
-        deploy()
-        send_message("[OK] Forced phase: deploy")
-    elif target_phase == "release_instrument":
-        release_instrument()
-        send_message("[OK] Forced phase: release_instrument")
-    else:
-        send_message("[ERR] Phase not defined")
-
-
-def read_system_commands():
-    command = radio.read()
-    command_str = command.decode("utf-8").strip()
-
-    if command_str == "system -r":                  # check reboot status
-        state["reboot"] = True
-    elif "system -p " in command_str:               # check for forced phase
-        target_phase = command_str.split('-p')[1].strip()
-        force_phase(target_phase)
-    else:
-        msg = "[ERROR] Command not defined"
-        send_message(msg)
-
-
-def capture():
-    while True:
-        command = radio.readline()
-        if command:
-            command_str = command.decode("utf-8").strip()
-            if command_str.strip() == "camera -c":
-                print("camera capture waiting on implementation")
-                send_message("[ERR] Camera pending implementation")
-                break  # Exit after handling the command
-
-
-# releases latch to the payload
-def release_latch():
-        time.sleep(15)          # wait for payload to reach the ground
-        latch.duty_ns(LATCH_TARGET_NS) # release latch
-        time.sleep(2)          # wait for release
-        state["latch_released"] = True  # report released
-
-# moves the rover forward after command received
-def release_instrument():
-    while True:  # Keep checking for the command
-        command = radio.readline()
-        if command:
-            command_str = command.decode("utf-8").strip()
-            if command_str.strip() == "arm -r":
-                arm.duty_ns(ARM_TARGET_NS)
-                state["arm_active"] = False  # disable after movement complete
-                state["arm_released"] = True  # report released
-                time.sleep(5)  # give ample time from task end to reset position
-                reset_servos()
-                state["instrument_released"] = True
-                send_message("[OK] Instrument released. Starting capture.")
-                capture()
-                break  # exit the loop after successful execution
-
-def is_landed(current_alt):
-    if abs(current_alt - state["prev_alt"]) < 5: # to account for systemic fluctuations
-        return True
-    else: 
-        return False
-
-
-latch.duty_ns(LATCH_TARGET_NS)
-time.sleep(2)
-reset_servos()
-
-arm.duty_ns(ARM_TARGET_NS)
-time.sleep(2)
-reset_servos()
+initialize_camera()
 
 
 
 
+# Constants
+LANDING_ALT_THRESH = 50.0   # ft (max height for landing detection)
+LANDING_RATE_THRESH = 0.5   # ft/s (max descent rate to trigger landing)
+LANDING_ACCEL_THRESH = 2.0  # g (minimum impact acceleration spike)
+STABLE_COUNT_TARGET = 3     # consecutive stable readings required
+
+# States
+state = "DESCENT"           # Start in descent after deployment
+stable_count = 0            # Count of stable descent rate readings
+prev_alt = calcAltitude(bmp.pressure) - base  # Initial altitude
+
+
+
+# Main loop during descent
 while True:
-    if state["reboot"]:
-        break
-
-    # get altitude data in ft
-    alt = calcAltitude(bmp.pressure)-base
-
-    # get units in meters per second squared
-    #x = accel.xValue * 9.81
-    #y = accel.yValue * 9.81
-    #z = accel.zValue * 9.81
+    # get data from all sensors
+    current_alt = calcAltitude(bmp.pressure)-base
+    #x = accel.xValue
+    #y = accel.yValue
+    #z = accel.zValue
     x = 0
     y = 0
     z = 0
-
-
-    # imu data
-    rotx = mpu.gyro.x
-    roty = mpu.gyro.y
-    rotz = mpu.gyro.z
-
-    mpu_temp = mpu.temperature
-
+    total_g = math.sqrt(x*x + y*y + z*z)
+    # rotx = mpu.gyro.x
+    # roty = mpu.gyro.y
+    # rotz = mpu.gyro.z
+    # mpu_temp = mpu.temperature
+    #voltage = sys.voltage()
 
     # read gnss data
     length = gps_module.any()
@@ -255,68 +116,152 @@ while True:
     longitude = convert_coordinates(gps.longitude)
 
     if latitude is None or longitude is None:
-        latitude = 0    
-        longitude = 0
+        latitude = 0.0
+        longitude = 0.0
 
-    #pressure = round(bmp.pressure*9.8692*0.000001, 2) #for atm conversion
-    pressure = bmp.pressure
+    pressure = bmp.pressure # in Pa
     temperature = bmp.temperature
     current_time = time.time()
 
 
-    if alt > TARGET_ALTITUDE:
-        state["target_altitude_reached"] = True
 
 
-    # listen for alt below 50 ft
-    if alt > latch_alt:
-        state["latch_ready"] = True
-
-    if is_landed(alt) and state["latch_ready"] and not state["latch_released"]:
-        release_latch()
-
-
-    # after everything has released
-    if state["latch_released"] and not state["arm_released"]:
-        time.sleep(2)      # wait for payload to stabilize
-        state["arm_active"] = True 
-
-
-    if state["arm_active"]:
-        release_instrument() 
-
-
-    state["prev_alt"] = alt # save alt for ref
+    # descent rate (ft/s)
+    descent_rate = prev_alt - current_alt  # pos means des
+    
+    # landing detection
+    if state == "DESCENT":
+        # case 1: below altitude threshold AND stable descent rate
+        low_altitude = abs(current_alt) <= LANDING_ALT_THRESH
+        stable_descent = abs(descent_rate) < LANDING_RATE_THRESH
         
-    # format telemetry data
-    data = 'S%0.4f,%0.4f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%0.1f,%i,%i,%i,%i\n' % (
-        float(latitude),
-        float(longitude),
-        alt,
-        pressure,
-        x,
-        y,
-        z,
-        rotx,
-        roty,
-        rotz,
-        temperature,
-        int(state["launched"]),
-        int(state["target_altitude_reached"]),
-        int(state["latch_released"]),
-        int(state["instrument_released"]),
-    )
-
-    # Send data to the USB serial port for local debugging
-    sys.stdout.write(data)
-    radio.write(data.encode()) # send data over radio
-
-
-    time.sleep(0.5)
+        # case 2: significant impact acceleration
+        impact_spike = total_g > LANDING_ACCEL_THRESH
+        
+        if low_altitude and stable_descent:
+            stable_count += 1
+        else:
+            stable_count = 0  # Reset if conditions break
+            
+        if stable_count >= STABLE_COUNT_TARGET or impact_spike:
+            state = "LANDED"
+            break  # we exit!
 
 
 
 
+	
+    # Req 5: "The telemetry shall consist of altitude, acceleration, payload temperature, and battery voltage.""
+    #telemetry = """
+	 #   {
+	#	    {
+    #            "altitude": {:.2f}, 
+   #             "acceleration": {
+    #                {
+     #                   "x": {:.2f}, 
+      #                  "y": {:.2f}, 
+       #                 "z": {:.2f}
+        #            }
+         #       }, 
+          #      "temperature": {:.2f},
+           #     "voltage": {:.2f}
+			#}
+	#	}""".format(current_alt, x, y, z, temperature, 0.0)
+    
+
+    
+    telemetry = f"{current_alt}, {x}, {y}, {temperature}, 0.0, {latitude}, {longitude}"
+    xbee.write(telemetry)
+    print(telemetry)
+    
+
+    image_buffer = 
+	
+    time.sleep(1) # Req 4: "During ascent and descent, the payload shall transmit telemetry once per second.""
+	
 
 
+# mvmt parameters -- NEEDS TESTING
+MOVE_SPEED = 0.5  # m/s
+TURN_RATE = 90    # deg/s
 
+def execute_command_sequence(sequence):
+    commands = sequence.split(',')
+    for cmd in commands:
+        parts = cmd.strip().split()
+
+        # all commands consist of two parts: action and value
+        if len(parts) < 2:
+            print("Invalid command format:", cmd)
+            continue
+            
+        action = parts[0].upper()
+        try:
+            value = float(parts[1])
+        except ValueError:
+            # if value is NaN, skip this command
+            print("Invalid value in command:", cmd)
+            continue 
+        
+        if action == "FORWARD":
+            # Move forward for specified distance
+            duration = value / MOVE_SPEED
+            motor_left.high()
+            motor_right.high()
+            time.sleep(duration)
+            motor_left.low()
+            motor_right.low()
+            
+        elif action == "BACKWARD":
+            # Move backward for specified distance
+            duration = value / MOVE_SPEED
+            motor_left.low()  # Reverse polarity
+            motor_right.low()
+            time.sleep(duration)
+            motor_left.low()  # Stop
+            motor_right.low()
+            
+        elif action == "LEFT":
+            # Turn left for specified angle
+            duration = value / TURN_RATE
+            motor_left.low()
+            motor_right.high()
+            time.sleep(duration)
+            motor_left.low()
+            motor_right.low()
+            
+        elif action == "RIGHT":
+            # Turn right for specified angle
+            duration = value / TURN_RATE
+            motor_left.high()
+            motor_right.low()
+            time.sleep(duration)
+            motor_left.low()
+            motor_right.low()
+            
+        else:
+            print("Unknown command:", action)
+        
+        # pause between commands
+        time.sleep(0.2)
+
+
+# runs AFTER landing  detected
+while True:
+    if xbee.any():
+        # recv + decode
+        raw_data = xbee.read()
+        try:
+            command_sequence = raw_data.decode('utf-8').strip()
+            print("Received sequence:", command_sequence)
+            
+            # exec sequence
+            execute_command_sequence(command_sequence)
+            
+        except UnicodeError:
+            print("Invalid command encoding")
+    
+    time.sleep(0.1)
+
+
+# example cmd: "FORWARD 2.0, LEFT 90, FORWARD 1.5"

@@ -7,6 +7,17 @@ let commandInput;
 let port;
 let reader;
 let isConnected = false;
+let imageBuffer = '';
+let isReceivingImage = false;
+let imageCounter = 0;
+// Add a line buffer at the top with other variables
+let lineBuffer = '';
+
+// Add this in your setup function or at the bottom of the script
+const imageContainer = document.createElement('div');
+imageContainer.id = 'image-container'
+document.body.appendChild(imageContainer);
+
 
 function setup() {
     // Assign elements
@@ -119,83 +130,204 @@ async function closePort() {
     }
 }
 
-function sendSerialCommand(command) {
-    if (isConnected && port.writable) {
-        const writer = port.writable.getWriter();
-        writer.write(new TextEncoder().encode(command));
-        writer.releaseLock();
-    } else {
-        console.log("Cannot send command: Not connected.");
+async function readData(reader) {
+    try {
+        const decoder = new TextDecoder('utf-8', { stream: true });
+        let buffer = '';
+        while (isConnected) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            
+            // Split buffer into lines
+            const lines = buffer.split(/\r?\n/);
+            buffer = lines.pop() || ''; // Save incomplete line
+            
+            // Process each complete line
+            for (const line of lines) {
+                processLine(line);
+            }
+        }
+        // Process any remaining data after disconnecting
+        if (buffer) processLine(buffer);
+    } catch (error) {
+        console.error("Error reading data:", error);
+    } finally {
+        reader.releaseLock();
     }
 }
 
 function serialRead(data) {
-    // Parse the incoming data string into JSON
-
-    if (!data.startsWith("S")) {
-        console.log("Invalid data:", data);
-        return;
-    }
+    lineBuffer += data; // Append incoming data to the buffer
+    const lines = lineBuffer.split(/\r?\n/); // Split into lines on any newline
+    lineBuffer = lines.pop(); // Save incomplete line for next chunk
     
-    const telemetryData = parseTelemetryData(data);
-    console.log(telemetryData);
-
-
-    if (Object.values(telemetryData).some(value => isNaN(value))) {
-        console.log("Invalid data:", telemetryData);
-        return;
+    // Process each complete line
+    for (const line of lines) {
+        processLine(line);
     }
-
-    // Log or display the parsed JSON data
-    console.log("Parsed Telemetry Data:", telemetryData);
-    telemetryReadings.innerHTML += "<p>" + JSON.stringify(telemetryData, null, 2) + "</p><br>";
-    telemetryReadings.scrollTop = telemetryReadings.scrollHeight;
-
-    // Upload data to server at /api/telemetry
-    fetch('/api/telemetry', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(telemetryData),
-    }).then(response => response.json())
-        .then(data => {
-            console.log('Success:', data);
-            document.querySelector("#graphics img").src = `${data.url}?t=${new Date().getTime()}`;
-        })
-        .catch((error) => {
-            console.error('Error:', error);
-        });
-
-    // Update status indicators
-    
-    if (telemetryData.instrument_released) {
-        if (!statusItems[3].querySelector(".status-indicator").classList.contains("active")) {
-            playStageCompleteSound();
-        }
-        statusItems[3].querySelector(".status-indicator").classList.add("active");
-    }
-    else if (telemetryData.parachute_released) {
-        if (!statusItems[2].querySelector(".status-indicator").classList.contains("active")) {
-            playStageCompleteSound();
-        }
-        statusItems[2].querySelector(".status-indicator").classList.add("active");
-    }  
-    else if (telemetryData.target_altitude_reached) {
-        if (!statusItems[1].querySelector(".status-indicator").classList.contains("active")) {
-            playStageCompleteSound();
-        }
-        statusItems[1].querySelector(".status-indicator").classList.add("active");
-    }
-    else if (telemetryData.launched) {
-        if (!statusItems[0].querySelector(".status-indicator").classList.contains("active")) {
-            playStageCompleteSound();
-        }
-        statusItems[0].querySelector(".status-indicator").classList.add("active");
-    }
-
-    addMarker(telemetryData);
 }
+
+function processLine(line) {
+    // Clean up carriage returns and whitespace
+    const cleanLine = line.trim().replace(/\r/g, '');
+
+    // Handle image header
+    if (cleanLine.startsWith("IMG|")) {
+        handleImageHeader(cleanLine);
+        return;
+    }
+
+    // Handle image start/end markers
+    if (cleanLine === "IMG_START") {
+        isReceivingImage = true;
+        imageBuffer = '';
+        telemetryReadings.innerHTML += "<p>Image transmission started.</p>";
+        return;
+    }
+
+    if (cleanLine === "IMG_END") {
+        isReceivingImage = false;
+        processImageBuffer();
+        telemetryReadings.innerHTML += "<p>Image transmission ended.</p>";
+        return;
+    }
+
+    // Handle image data chunks
+    if (isReceivingImage) {
+        imageBuffer += cleanLine; // Append cleaned line
+        return;
+    }
+    
+    // Handle telemetry data
+    if (line.startsWith("S")) {
+        const telemetryData = parseTelemetryData(cleanLine);
+        console.log(telemetryData);
+
+        if (Object.values(telemetryData).some(value => isNaN(value))) {
+            console.log("Invalid data:", telemetryData);
+            return;
+        }
+
+        // Log or display the parsed JSON data
+        console.log("Parsed Telemetry Data:", telemetryData);
+        telemetryReadings.innerHTML += "<p>" + JSON.stringify(telemetryData, null, 2) + "</p><br>";
+        telemetryReadings.scrollTop = telemetryReadings.scrollHeight;
+
+        // Upload data to server at /api/telemetry
+        fetch('/api/telemetry', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(telemetryData),
+        }).then(response => response.json())
+            .then(data => {
+                console.log('Success:', data);
+                document.querySelector("#graphics img").src = `${data.url}?t=${new Date().getTime()}`;
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+
+        // Update status indicators
+        
+        if (telemetryData.instrument_released) {
+            if (!statusItems[3].querySelector(".status-indicator").classList.contains("active")) {
+                playStageCompleteSound();
+            }
+            statusItems[3].querySelector(".status-indicator").classList.add("active");
+        }
+        else if (telemetryData.parachute_released) {
+            if (!statusItems[2].querySelector(".status-indicator").classList.contains("active")) {
+                playStageCompleteSound();
+            }
+            statusItems[2].querySelector(".status-indicator").classList.add("active");
+        }  
+        else if (telemetryData.target_altitude_reached) {
+            if (!statusItems[1].querySelector(".status-indicator").classList.contains("active")) {
+                playStageCompleteSound();
+            }
+            statusItems[1].querySelector(".status-indicator").classList.add("active");
+        }
+        else if (telemetryData.launched) {
+            if (!statusItems[0].querySelector(".status-indicator").classList.contains("active")) {
+                playStageCompleteSound();
+            }
+            statusItems[0].querySelector(".status-indicator").classList.add("active");
+        }
+
+        addMarker(telemetryData);
+    } else if (line.trim() !== "") { // Avoid logging empty lines
+        console.log("Unrecognized data format:", cleanLine);
+    }
+}
+
+function handleImageHeader(line) {
+    const [_, filename, size] = line.split('|');
+    if (filename && size) {
+        telemetryReadings.innerHTML += `<p>Receiving image: ${filename} (${size} bytes)</p>`;
+    } else {
+        console.error("Invalid image header:", line);
+    }
+}
+
+function processImageBuffer() {
+    try {
+        // Convert base64 string to binary
+        const binaryString = atob(imageBuffer);
+        const bytes = new Uint8Array(binaryString.length);
+        
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        // Create Blob and URL
+        const blob = new Blob([bytes], {type: 'image/jpeg'});
+        const url = URL.createObjectURL(blob);
+
+        // Create image element
+        const img = document.createElement('img');
+        img.src = url;
+        img.style.maxWidth = '100%';
+        img.style.margin = '10px';
+        img.alt = `Received image ${++imageCounter}`;
+
+        // Add to container
+        imageContainer.appendChild(img);
+        telemetryReadings.innerHTML += `<p>Image received and displayed (${imageBuffer.length} bytes)</p>`;
+
+    } catch (error) {
+        console.error('Error processing image:', error);
+        telemetryReadings.innerHTML += `<p class="error">Error decoding image: ${error.message}</p>`;
+    }
+}
+
+// Add CSS for image container
+const style = document.createElement('style');
+style.textContent = `
+#image-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: white;
+    padding: 10px;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    max-width: 300px;
+    max-height: 400px;
+    overflow: auto;
+}
+#image-container img {
+    display: block;
+    margin-bottom: 10px;
+    border: 1px solid #ddd;
+}
+.error {
+    color: red;
+}`;
+document.head.appendChild(style);
+
 
 // Run setup after the page has loaded
 document.addEventListener("DOMContentLoaded", () => {
