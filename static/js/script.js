@@ -199,67 +199,40 @@ function processLine(line) {
         return;
     }
     
-    // Handle telemetry data
-    if (line.startsWith("S")) {
-        const telemetryData = parseTelemetryData(cleanLine);
-        console.log(telemetryData);
-
-        if (Object.values(telemetryData).some(value => isNaN(value))) {
-            console.log("Invalid data:", telemetryData);
+    // Handle JSON telemetry
+    if (cleanLine.startsWith("{") && cleanLine.endsWith("}")) {
+        let telemetryData;
+        try {
+            telemetryData = JSON.parse(cleanLine);
+        } catch (err) {
+            console.error("Invalid JSON:", cleanLine);
             return;
         }
 
-        // Log or display the parsed JSON data
-        console.log("Parsed Telemetry Data:", telemetryData);
+        // Display formatted JSON
         telemetryReadings.innerHTML += "<p>" + JSON.stringify(telemetryData, null, 2) + "</p><br>";
         telemetryReadings.scrollTop = telemetryReadings.scrollHeight;
 
-        // Upload data to server at /api/telemetry
+        // Upload telemetry to server
         fetch('/api/telemetry', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(telemetryData),
-        }).then(response => response.json())
-            .then(data => {
-                console.log('Success:', data);
-                document.querySelector("#graphics img").src = `${data.url}?t=${new Date().getTime()}`;
-            })
-            .catch((error) => {
-                console.error('Error:', error);
-            });
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Success:', data);
+            document.querySelector("#graphics img").src = `${data.url}?t=${new Date().getTime()}`;
+        })
+        .catch((error) => console.error('Error:', error));
 
         // Update status indicators
-        
-        if (telemetryData.instrument_released) {
-            if (!statusItems[3].querySelector(".status-indicator").classList.contains("active")) {
-                playStageCompleteSound();
-            }
-            statusItems[3].querySelector(".status-indicator").classList.add("active");
-        }
-        else if (telemetryData.parachute_released) {
-            if (!statusItems[2].querySelector(".status-indicator").classList.contains("active")) {
-                playStageCompleteSound();
-            }
-            statusItems[2].querySelector(".status-indicator").classList.add("active");
-        }  
-        else if (telemetryData.target_altitude_reached) {
-            if (!statusItems[1].querySelector(".status-indicator").classList.contains("active")) {
-                playStageCompleteSound();
-            }
-            statusItems[1].querySelector(".status-indicator").classList.add("active");
-        }
-        else if (telemetryData.launched) {
-            if (!statusItems[0].querySelector(".status-indicator").classList.contains("active")) {
-                playStageCompleteSound();
-            }
-            statusItems[0].querySelector(".status-indicator").classList.add("active");
-        }
+        updateStatusIndicators(telemetryData);
 
+        // Add map marker
         addMarker(telemetryData);
-    } else if (line.trim() !== "") { // Avoid logging empty lines
-        console.log("Unrecognized data format:", cleanLine);
+
+        return;
     }
 }
 
@@ -295,11 +268,40 @@ function processImageBuffer() {
 
         // Add to container
         imageContainer.appendChild(img);
+        // Auto-scroll to show the latest image
+        imageContainer.scrollTop = imageContainer.scrollHeight - imageContainer.clientHeight;
         telemetryReadings.innerHTML += `<p>Image received and displayed (${imageBuffer.length} bytes)</p>`;
 
     } catch (error) {
         console.error('Error processing image:', error);
         telemetryReadings.innerHTML += `<p class="error">Error decoding image: ${error.message}</p>`;
+    }
+}
+
+function updateStatusIndicators(t) {
+    if (t.instrument_released) {
+        if (!statusItems[3].querySelector(".status-indicator").classList.contains("active")) {
+            playStageCompleteSound();
+        }
+        statusItems[3].querySelector(".status-indicator").classList.add("active");
+    }
+    else if (t.parachute_released) {
+        if (!statusItems[2].querySelector(".status-indicator").classList.contains("active")) {
+            playStageCompleteSound();
+        }
+        statusItems[2].querySelector(".status-indicator").classList.add("active");
+    }
+    else if (t.target_altitude_reached) {
+        if (!statusItems[1].querySelector(".status-indicator").classList.contains("active")) {
+            playStageCompleteSound();
+        }
+        statusItems[1].querySelector(".status-indicator").classList.add("active");
+    }
+    else if (t.launched) {
+        if (!statusItems[0].querySelector(".status-indicator").classList.contains("active")) {
+            playStageCompleteSound();
+        }
+        statusItems[0].querySelector(".status-indicator").classList.add("active");
     }
 }
 
@@ -315,11 +317,14 @@ style.textContent = `
     border-radius: 5px;
     box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     max-width: 300px;
-    max-height: 400px;
-    overflow: auto;
+    height: 260px; /* approx one image height incl. padding */
+    max-height: 260px;
+    overflow-y: auto;
 }
 #image-container img {
     display: block;
+    width: 100%;
+    height: auto;
     margin-bottom: 10px;
     border: 1px solid #ddd;
 }
@@ -335,27 +340,6 @@ document.addEventListener("DOMContentLoaded", () => {
     initMap();
 });
 
-function parseTelemetryData(data) {
-    data = data.trim().substring(1);
-    const values = data.split(',');
-    return {
-        latitude: parseFloat(values[0]),
-        longitude: parseFloat(values[1]),
-        altitude: parseFloat(values[2]),
-        pressure: parseFloat(values[3]),
-        x_acceleration: parseFloat(values[4]),
-        y_acceleration: parseFloat(values[5]),
-        z_acceleration: parseFloat(values[6]),
-        x_rotation: parseFloat(values[7]),
-        y_rotation: parseFloat(values[8]),
-        z_rotation: parseFloat(values[9]),
-        temperature: parseFloat(values[10]),
-        launched: parseInt(values[11]),
-        target_altitude_reached: parseInt(values[12]),
-        parachute_released: parseInt(values[13]),
-        instrument_released: parseInt(values[14]),
-    };
-}
 
 function playStageCompleteSound() {
     const complete = new Audio("/static/audio/stage_complete.aac");
