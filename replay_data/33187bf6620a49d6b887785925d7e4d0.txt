@@ -1,0 +1,2 @@
+[19/Dec/2025 19:34:03] {'acceleration': {'x': 0.094, 'y': 0.095, 'z': 1.077}, 'altitude': -0.03, 'latitude': 0, 'longitude': 0, 'temperature': 27.04, 'voltage': 0, 'replay_id': '33187bf6620a49d6b887785925d7e4d0', 'final_timestamp': '19/Dec/2025 19:39:03'}
+[19/Dec/2025 19:34:06] {'acceleration': {'x': 0.104, 'y': 0.103, 'z': 1.076}, 'altitude': -0.03, 'latitude': 0, 'longitude': 0, 'temperature': 27.03, 'voltage': 0, 'replay_id': '33187bf6620a49d6b887785925d7e4d0', 'final_timestamp': '19/Dec/2025 19:39:03'}

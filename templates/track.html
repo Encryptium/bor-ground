@@ -7,113 +7,107 @@
     <link rel="icon" type="image/x-icon" href="/static/img/favicon.png">
     <link rel="stylesheet" href="/static/css/style.css">
     <script
-        src="https://maps.googleapis.com/maps/api/js?key=[key]&libraries=maps,visualization&map_ids=c53e775cd5e6be62"
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDYirUfvyskQhAn8hyMEV4wriHc26jmTmU&libraries=maps,visualization&map_ids=c53e775cd5e6be62"
     ></script>
     <script src="/static/js/WebSerialPort.js"></script>
     <script src="/static/js/script.js" defer></script>
 
 </head>
 <body>
-    <div class="dashboard">
-        <!-- Background -->
-        <div class="background"></div>
-
-        <!-- Video Feed Section -->
-        <div id="graphics" class="section graphics">
-            <img src="/static/img/blank.svg">
-        </div>
-
-        <!-- Payload Status Section -->
-        <div id="payload-container" class="section payload-container">
-                <!-- <div class="status-header">Payload Disconnected</div>
-                <div class="status-box"><img src="/static/img/secured-payload.svg" draggable="false"></div> -->
-                <div id="map"></div>
-                <button id="port-button">Connect</button>
-        </div>
-
-        <!-- Telemetry data Section -->
-        <div id="telemetry-data" class="section telemetry-data">
-            <div id="console">
-                <p>Waiting for data...</p>
-            </div>
-            <input id="command-input" type="text" placeholder="Send command...">
-        </div>
-
-        <!-- Status List Section -->
-        <div id="checklist-container" class="section checklist-container">
-            <ul>
-                <li>
-                    <div class="checklist-item">
-                        <div class="status-indicator"></div>
-                        <div class="status-label">Launch</div>
-                    </div>
-                </li>
-                <li>
-                    <div class="checklist-item">
-                        <div class="status-indicator"></div>
-                        <div class="status-label">Reach target altitude</div>
-                    </div>
-                </li>
-                <li>
-                    <div class="checklist-item">
-                        <div class="status-indicator"></div>
-                        <div class="status-label">Deploy</div>
-                    </div>
-                </li>
-                <li>
-                    <div class="checklist-item">
-                        <div class="status-indicator"></div>
-                        <div class="status-label">Release instrument</div>
-                    </div>
-                </li>
-            </ul>
-            
-        </div>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-dot"></div>
+      <div class="brand-text">
+        <div class="brand-title">Ground Station</div>
+        <div class="brand-sub">Track Active Launch</div>
+      </div>
     </div>
-      
 
-    
-    <script>
-      function initMap() {
-        const map = new google.maps.Map(document.getElementById("map"), {
-          center: { lat: 34.0522, lng: -118.2437 }, // Los Angeles coordinates
-          zoom: 13,
-          mapId: "c53e775cd5e6be62",
-          mapTypeId: "roadmap",
-          disableDefaultUI: true, // Disables all default UI controls
-        });
+    <div class="topbar-actions">
+      <button id="tts-button" type="button" aria-pressed="false" class="chip">Voice: OFF</button>
+      <button id="port-button" class="btn-primary">Connect</button>
+    </div>
+  </header>
 
-        // Create a marker using the AdvancedMarkerElement
-        const marker = new google.maps.marker.AdvancedMarkerElement({
-          map: map,
-          position: { lat: 34.0522, lng: -118.2437 },
-          title: "Los Angeles",
-        });
+  <main class="layout">
+    <!-- Altitude Graph -->
+    <section id="graphics" class="panel panel-media">
+      <div class="panel-head">
+        <div class="panel-title">Altitude Graph</div>
+        <div class="panel-meta">1 Hz @ BMP280</div>
+      </div>
+      <div class="panel-body media-body">
+        <img src="/static/img/blank.svg" alt="Altitude v. Time Graph">
+      </div>
+    </section>
 
-        // Example marker data with colors
-        const markerData = [
-            { position: { lat: 34.0522, lng: -118.2437 }, color: "red" },
-            { position: { lat: 34.0622, lng: -118.2537 }, color: "blue" },
-            { position: { lat: 34.0422, lng: -118.2337 }, color: "green" },
-        ];
+    <!-- Map -->
+    <section class="panel panel-map">
+      <div class="panel-head">
+        <div class="panel-title">Map</div>
+        <div class="panel-meta">TOPGNSS GN-801</div>
+      </div>
+      <div class="panel-body map-body">
+        <div id="map" aria-label="Map"></div>
+      </div>
+    </section>
 
-        // Loop through the marker data and create colored dot markers
-        markerData.forEach((data) => {
-            new google.maps.Marker({
-                position: data.position,
-                map: map,
-                icon: {
-                    path: google.maps.SymbolPath.CIRCLE, // Use a circle shape
-                    scale: 8, // Size of the dot
-                    fillColor: data.color, // Fill color for the dot
-                    fillOpacity: 1, // Opacity of the fill
-                    strokeWeight: 0, // No border
-                },
-            });
-        });
-        }
-    </script>
-      
-    
+    <!-- Console -->
+    <section id="telemetry-data" class="panel panel-console">
+      <div class="panel-head">
+        <div class="panel-title">Console</div>
+        <div class="panel-meta">Telemetry + system messages</div>
+      </div>
+
+      <div class="panel-body console-body">
+        <div id="console"><p>Waiting for data...</p></div>
+      </div>
+
+      <div class="panel-foot">
+        <input id="command-input" type="text" placeholder="Type a command and press Enter…">
+        <div class="hint">Tip: <span class="kbd">STOP</span> • <span class="kbd">FORWARD 1.5, RIGHT 45</span></div>
+      </div>
+    </section>
+
+    <!-- Status (replaces checklist UI) -->
+    <section class="panel panel-status">
+      <div class="panel-head">
+        <div class="panel-title">Status</div>
+        <div class="panel-meta">Parsed data</div>
+      </div>
+
+      <div class="panel-body status-body">
+        <div class="status-cards">
+          <div class="stat">
+            <div class="stat-label">Data Stream</div>
+            <div class="stat-value" id="ui-link">Disconnected</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Altitude</div>
+            <div class="stat-value" id="ui-alt">— ft</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Temp</div>
+            <div class="stat-value" id="ui-temp">— °C</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">GPS</div>
+            <div class="stat-value" id="ui-gps">—</div>
+          </div>
+        </div>
+
+        <div class="rocket-card">
+          <div class="rocket-title">Information Key</div>
+
+          <div class="rocket-notes">
+            <div class="note"><span class="dot ok"></span><span>Telemetry</span></div>
+            <div class="note"><span class="dot warn"></span><span>Images</span></div>
+            <div class="note"><span class="dot off"></span><span>Commands</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
 </body>
 </html>

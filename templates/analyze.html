@@ -7,86 +7,261 @@
     <link rel="icon" type="image/x-icon" href="/static/img/favicon.png">
     <link rel="stylesheet" href="/static/css/style.css">
     <script
-        src="https://maps.googleapis.com/maps/api/js?key=[key]&libraries=maps,visualization&map_ids=c53e775cd5e6be62"
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDYirUfvyskQhAn8hyMEV4wriHc26jmTmU&libraries=maps,visualization&map_ids=c53e775cd5e6be62"
     ></script>
     <script src="/static/js/WebSerialPort.js"></script>
     <script src="/static/js/replay.js" defer></script>
 </head>
 <body>
     <style>
-        #payload-container div i {
-            background-color: royalblue;
-            color: whitesmoke;
-        }
+      :root{
+        --bg0:#0b0f14;
+        --bg1:#0f1620;
+        --card:rgba(255,255,255,.06);
+        --card2:rgba(255,255,255,.08);
+        --border:rgba(255,255,255,.10);
+        --text:rgba(255,255,255,.92);
+        --muted:rgba(255,255,255,.65);
+        --shadow:0 18px 60px rgba(0,0,0,.55);
+        --radius:18px;
+      }
 
-        #replay-speed {
-            background-color: transparent;
-            color:whitesmoke;
-            border: none;
-            text-align: center;
-            font-size: 36px;
-            font-weight: bold;
-            width: 65px;
-            outline: none;
-        }
+      html,body{height:100%;}
+      body{
+        margin:0;
+        color:var(--text);
+        background:
+          radial-gradient(1200px 700px at 20% 10%, rgba(120,180,255,.18), transparent 60%),
+          radial-gradient(900px 600px at 90% 30%, rgba(110,255,210,.10), transparent 55%),
+          linear-gradient(180deg, var(--bg0), var(--bg1));
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      }
 
-        /* Chrome, Safari, Edge, Opera */
-        input::-webkit-outer-spin-button,
-        input::-webkit-inner-spin-button {
-        -webkit-appearance: none;
-        margin: 0;
-        }
+      /* keep your existing wrapper but make it actually do the layout */
+      .dashboard{
+        position:relative;
+        min-height:100vh;
+        padding:18px;
+        display:grid;
+        grid-template-columns: 1.35fr .85fr;
+        grid-template-rows: auto 1fr 260px;
+        gap:18px;
+        box-sizing:border-box;
+      }
 
-        /* Firefox */
-        input[type=number] {
-            -moz-appearance: textfield;
-            font-style: italic;
-        }
+      .background{display:none;}
 
-        #command-input {
-            cursor: not-allowed;
-        }
+      /* header */
+      #disclaimer{
+        grid-column:1 / -1;
+        grid-row:1;
+        height:auto;
+        padding:12px 14px;
+        border-radius:14px;
+        background:rgba(255,255,255,.05);
+        border:1px solid var(--border);
+        box-shadow: var(--shadow);
+        position:static;
+      }
+      #disclaimer p{
+        margin:0;
+        font-weight:700;
+        letter-spacing:.06em;
+        font-size:12px;
+        color:var(--muted);
+        text-transform:uppercase;
+        text-align:left;
+      }
 
-        .section {
-            /* outline: 3px solid #ffd90068; */
-            outline: 3px solid rgba(65, 105, 225, 0.25);
-        }
+      /* cards */
+      .section{
+        outline:none;
+        border:1px solid var(--border);
+        background: var(--card);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        overflow:hidden;
+        backdrop-filter: blur(10px);
+      }
 
-        #disclaimer {
-            background-color: royalblue;
-            color: white;
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 25px;
-        }
+      /* LEFT: main plot */
+      #graphics{
+        grid-column:1;
+        grid-row:2;
+        display:flex;
+        align-items:stretch;
+        justify-content:stretch;
+        padding:14px;
+      }
+      #graphics img{
+        width:100%;
+        height:100%;
+        object-fit:contain;
+        border-radius:14px;
+        background:rgba(0,0,0,.35);
+      }
 
-        #disclaimer p {
-            text-align: center;
-            margin-top: 3px;
-            font-weight: bold;
-        }
+      /* RIGHT: map */
+      #payload-container{
+        grid-column:2;
+        grid-row:2;
+        display:flex;
+        flex-direction:column;
+      }
 
-        #pause-button {
-            background-color: transparent;
-            position: absolute;
-            bottom: 50px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: fit-content;
-            height: 40px;
-            padding: 5px 20px;
-            border: none;
-            border-radius: 4px;
-            font-weight: 600;
-            z-index: 99;
-            cursor: pointer;
-        }
+      .status-header{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:12px;
+        padding:12px 14px;
+        border-bottom:1px solid var(--border);
+        background:rgba(0,0,0,.20);
+        font-weight:700;
+      }
+      .status-header i{
+        font-style:normal;
+        padding:6px 10px;
+        border-radius:999px;
+        background:rgba(255,255,255,.08);
+        border:1px solid rgba(255,255,255,.10);
+        color:rgba(255,255,255,.85);
+      }
 
-        #pause-button img {
-            pointer-events: none;
+      #replay-speed{
+        background:transparent;
+        color:rgba(255,255,255,.92);
+        border:1px solid rgba(255,255,255,.14);
+        border-radius:10px;
+        text-align:center;
+        font-size:18px;
+        font-weight:800;
+        width:84px;
+        padding:6px 8px;
+        outline:none;
+      }
+
+      #map{
+        flex:1;
+        min-height:320px;
+        border-top:1px solid rgba(255,255,255,.06);
+      }
+
+      #pause-button{
+        position:absolute;
+        right:22px;
+        bottom:22px;
+        left:auto;
+        transform:none;
+        width:44px;
+        height:44px;
+        border-radius:14px;
+        border:1px solid rgba(255,255,255,.14);
+        background:rgba(0,0,0,.55);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        z-index:99;
+      }
+      #pause-button:hover{background:rgba(0,0,0,.70);}
+
+      /* BOTTOM: console */
+      #telemetry-data{
+        grid-column:1 / -1;
+        grid-row:3;
+        display:flex;
+        flex-direction:column;
+        overflow:hidden;
+      }
+      #console{
+        flex:1;
+        padding:14px;
+        overflow:auto;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size:13px;
+        line-height:1.35;
+        color:rgba(255,255,255,.85);
+      }
+
+      #command-input{
+        border:none;
+        border-top:1px solid var(--border);
+        background:rgba(0,0,0,.25);
+        color:rgba(255,255,255,.6);
+        padding:14px;
+        font-size:14px;
+        cursor:not-allowed;
+      }
+
+      /* RIGHT bottom: replace checklist with a clean info card */
+      #checklist-container{
+        grid-column:2;
+        grid-row:3;
+        display:flex;
+        flex-direction:column;
+        padding:14px;
+        gap:12px;
+      }
+
+      #checklist-container .replay-info-title{
+        font-weight:800;
+        font-size:14px;
+        letter-spacing:.04em;
+        color:rgba(255,255,255,.85);
+      }
+
+      #checklist-container .replay-info-grid{
+        display:grid;
+        grid-template-columns: 1fr;
+        gap:10px;
+      }
+
+      .mini-card{
+        border:1px solid rgba(255,255,255,.10);
+        background:rgba(0,0,0,.18);
+        border-radius:14px;
+        padding:12px;
+      }
+
+      .mini-label{
+        font-size:12px;
+        color:var(--muted);
+        margin-bottom:6px;
+        text-transform:uppercase;
+        letter-spacing:.08em;
+      }
+
+      .mini-value{
+        font-weight:900;
+        font-size:18px;
+        color:rgba(255,255,255,.92);
+      }
+
+      /* TTS button: fixed to screen (not stuck inside map) */
+      #tts-enable-button{
+        position:fixed;
+        bottom:22px;
+        left:22px;
+        z-index:10000;
+        padding:10px 12px;
+        border-radius:12px;
+        border:1px solid rgba(255,255,255,.15);
+        background:rgba(0,0,0,.65);
+        color:rgba(255,255,255,.92);
+        cursor:pointer;
+      }
+
+      /* responsive */
+      @media (max-width: 1100px){
+        .dashboard{
+          grid-template-columns:1fr;
+          grid-template-rows:auto 380px 420px 260px;
         }
+        #graphics{grid-column:1; grid-row:2;}
+        #payload-container{grid-column:1; grid-row:3;}
+        #telemetry-data{grid-column:1; grid-row:4;}
+        #checklist-container{display:none;}
+      }
     </style>
 
     <script>
@@ -99,14 +274,15 @@
         <div class="background"></div>
 
         <div id="disclaimer"><p>THIS IS A REPLAY WITH NO LIVE PLOTTING</p></div>
+        <button id="tts-enable-button" type="button">Enable voice</button>
 
         <!-- Video Feed Section -->
-        <div id="graphics" class="section graphics">
+        <div id="graphics" class="panel graphics">
             <img src="/static/img/blank.svg">
         </div>
 
         <!-- Payload Status Section -->
-        <div id="payload-container" class="section payload-container">
+        <div id="payload-container" class="panel payload-container">
                 <div class="status-header"><i>&nbsp;REPLAY&nbsp;</i> at <input type="number" id="replay-speed" value="500" min="200" max="999" step="1">ms</div>
                 <!-- <div class="status-box"><img src="/static/img/secured-payload.svg" draggable="false"></div> -->
                 <div id="map"></div>
@@ -114,40 +290,24 @@
         </div>
 
         <!-- Telemetry data Section -->
-        <div id="telemetry-data" class="section telemetry-data">
+        <div id="telemetry-data" class="panel telemetry-data" style="width: calc(100% - 590px);">
             <div id="console"></div>
             <input id="command-input" type="text" placeholder="Replaying past event" disabled>
         </div>
 
-        <!-- Status List Section -->
-        <div id="checklist-container" class="section checklist-container">
-            <ul>
-                <li>
-                    <div class="checklist-item">
-                        <div class="status-indicator waiting"></div>
-                        <div class="status-label">Launch</div>
-                    </div>
-                </li>
-                <li>
-                    <div class="checklist-item">
-                        <div class="status-indicator waiting"></div>
-                        <div class="status-label">Reach target altitude</div>
-                    </div>
-                </li>
-                <li>
-                    <div class="checklist-item">
-                        <div class="status-indicator waiting"></div>
-                        <div class="status-label">Deploy</div>
-                    </div>
-                </li>
-                <li>
-                    <div class="checklist-item">
-                        <div class="status-indicator waiting"></div>
-                        <div class="status-label">Release instrument</div>
-                    </div>
-                </li>
-            </ul>
-            
+        <!-- Replay Info (replaces checklist) -->
+        <div id="checklist-container" class="panel">
+          <div class="replay-info-title">Replay</div>
+          <div class="replay-info-grid">
+            <div class="mini-card">
+              <div class="mini-label">Mode</div>
+              <div class="mini-value">Analyze</div>
+            </div>
+            <div class="mini-card">
+              <div class="mini-label">Tip</div>
+              <div class="mini-value" style="font-size:14px; font-weight:700; color: rgba(255,255,255,.78);">Press <b>T</b> to toggle voice</div>
+            </div>
+          </div>
         </div>
     </div>
       
