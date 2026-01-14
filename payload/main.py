@@ -1,263 +1,401 @@
 """
-The code has been updated to reflect the event rule changes.
+2025 Mars Rover Payload/Rover Code (Cleaned + GPS kept for Ground Station)
 
-Rule Changes for 2025:
-
-1. The telemetry only needs to include: altitude, acceleration, payload temperature, and battery voltage (NO GPS/pressure/rotation).
-2. The rover must have commands sent in one string
-3. The rover must pick up TBD grams of sand
-4. Rover must have REALTIME video feed
-5. The container is to be opened by hand (gloved)
-
+NOTE:
+- Competition rules may not require GPS, but ground station expects lat/lon for mapping.
+- This version is robust: watchdog + crash-reboot + non-blocking GPS.
 """
 
-from machine import I2C, UART,Pin, PWM
+from machine import I2C, UART, Pin, WDT, reset
 from bmp280 import BMP280
-from adxl345 import ADXL345
 from mpu6050 import MPU6050
 from micropyGPS import MicropyGPS
-import sys
+from camera_helper import get_photo_b64
 import time
 import math
+import ujson
+import sys
 
+# -------------------------
+# USER SETTINGS
+# -------------------------
+DEBUG = True
 
-xbee = UART(1,baudrate=9600,rx=Pin(5),tx=Pin(4),timeout=3000)
-gps_module = UART(0, baudrate=9600, tx=Pin(0), rx=Pin(1))
-# available pwms: 2, 3, 6, 7
-bus = I2C(1,sda=Pin(6),scl=Pin(7))
+XBEE_BAUD = 9600
+GPS_BAUD = 9600
 
-motor_left = Pin(10)
-motor_right = Pin(11)
-motor_left.low()
-motor_right.low()
+TELEMETRY_PERIOD_MS = 1000
+IMAGE_PERIOD_MS     = 1000
+CHUNK_SIZE          = 90
 
-def calcAltitude(press, unit='ft'):
-    a = press / 101325.0
-    b = 1/5.25588
-    c = math.pow(a,b)
-    c = 1.0 - c
+LAND_ALT_FT_THRESHOLD = 10.0
+LAND_STABLE_MS        = 3000
+
+# Watchdog: pick 8–12s so it survives a slow image frame
+WDT_TIMEOUT_MS = 8000
+
+# -------------------------
+# Watchdog
+# -------------------------
+time.sleep(5) # grace period before watchdog takes effect
+wdt = WDT(timeout=WDT_TIMEOUT_MS)
+
+def kick():
+    try:
+        wdt.feed()
+    except:
+        pass
+
+# -------------------------
+# Hardware setup
+# -------------------------
+xbee = UART(1, baudrate=XBEE_BAUD, rx=Pin(5), tx=Pin(4), timeout=3000)
+
+gps_module = UART(0, baudrate=GPS_BAUD, tx=Pin(0), rx=Pin(1))
+gps = MicropyGPS(-5)
+
+bus = I2C(1, sda=Pin(6), scl=Pin(7))
+bmp = BMP280(bus)
+mpu = MPU6050(bus)
+
+motor_left_pwr = Pin(10, Pin.OUT)
+motor_left_gnd = Pin(11, Pin.OUT)
+motor_left_pwr.low()
+motor_left_gnd.low()
+
+motor_right_pwr = Pin(8, Pin.OUT)
+motor_right_gnd = Pin(9, Pin.OUT)
+motor_right_pwr.low()
+motor_right_gnd.low()
+
+def leftMotorForward():
+    motor_left_pwr.high()
+    motor_left_gnd.low()
+    
+def rightMotorForward():
+    motor_right_pwr.high()
+    motor_right_gnd.low()
+    
+def leftMotorBackward():
+    motor_left_pwr.low()
+    motor_left_gnd.high()
+    
+def rightMotorBackward():
+    motor_right_pwr.low()
+    motor_right_gnd.high()
+
+# -------------------------
+# Helpers
+# -------------------------
+def calcAltitude(press_pa, unit='ft'):
+    # Barometric altitude approximation
+    a = press_pa / 101325.0
+    b = 1 / 5.25588
+    c = 1.0 - math.pow(a, b)
     c = c / 0.0000225577
     if unit == 'ft':
-            c = c * 3.28084
+        c *= 3.28084
     return c
 
 def convert_coordinates(sections):
-    if sections[0] == 0:  # sections[0] contains the degrees
-            return None
+    # sections like [deg, minutes, 'N'/'S' or 'E'/'W']
+    if (not sections) or sections[0] == 0:
+        return None
+    deg = sections[0]
+    minutes = sections[1]
+    hemi = sections[2]
+    val = deg + (minutes / 60.0)
+    if hemi in ('S', 'W'):
+        val = -val
+    return float('{0:.6f}'.format(val))
 
-    # sections[1] contains the minutes
-    data = sections[0] + (sections[1] / 60.0)
+def read_battery_voltage():
+    # TODO: replace with ADC reading
+    return 7.4
 
-    # sections[2] contains 'E', 'W', 'N', 'S'
-    if sections[2] == 'S':
-            data = -data
-    if sections[2] == 'W':
-            data = -data
-
-    data = '{0:.6f}'.format(data)  # 6 decimal places
-    return str(data)
-
-
-
-# bmp barometer for pressure and altitude
-bmp = BMP280(bus)
-for i in range(5):
-    base = calcAltitude(bmp.pressure)
-    time.sleep(0.2)
-#accel = ADXL345(bus) # accelerometer
-mpu = MPU6050(bus) # rotation sensor mpu
-
-gps = MicropyGPS(-5)
-
-
-
-
-
-# Constants
-LANDING_ALT_THRESH = 50.0   # ft (max height for landing detection)
-LANDING_RATE_THRESH = 0.5   # ft/s (max descent rate to trigger landing)
-LANDING_ACCEL_THRESH = 2.0  # g (minimum impact acceleration spike)
-STABLE_COUNT_TARGET = 3     # consecutive stable readings required
-
-# States
-state = "DESCENT"           # Start in descent after deployment
-stable_count = 0            # Count of stable descent rate readings
-prev_alt = calcAltitude(bmp.pressure) - base  # Initial altitude
-
-
-
-
-
-while True:
-    # get data from all sensors
-    current_alt = calcAltitude(bmp.pressure)-base
-    #x = accel.xValue
-    #y = accel.yValue
-    #z = accel.zValue
-    x = 0
-    y = 0
-    z = 0
-    total_g = math.sqrt(x*x + y*y + z*z)
-    # rotx = mpu.gyro.x
-    # roty = mpu.gyro.y
-    # rotz = mpu.gyro.z
-    # mpu_temp = mpu.temperature
-    #voltage = sys.voltage()
-
-    # read gnss data
-    length = gps_module.any()
-    if length > 0:
-        data = gps_module.read(length)
-        for byte in data:
-            message = gps.update(chr(byte))
-
-    latitude = convert_coordinates(gps.latitude)
-    longitude = convert_coordinates(gps.longitude)
-
-    if latitude is None or longitude is None:
-        latitude = 0.0
-        longitude = 0.0
-
-    pressure = bmp.pressure # in Pa
-    temperature = bmp.temperature
-    current_time = time.time()
-
-
-
-
-    # descent rate (ft/s)
-    descent_rate = prev_alt - current_alt  # pos means des
-    
-    # landing detection
-    if state == "DESCENT":
-        # case 1: below altitude threshold AND stable descent rate
-        low_altitude = abs(current_alt) <= LANDING_ALT_THRESH
-        stable_descent = abs(descent_rate) < LANDING_RATE_THRESH
+def safe_write_line(s):
+    # Always newline-terminated packets
+    if isinstance(s, str):
+        xbee.write(s.encode('utf-8') + b'\n')
+    else:
+        xbee.write(s + b'\n')
         
-        # case 2: significant impact acceleration
-        impact_spike = total_g > LANDING_ACCEL_THRESH
+def pump_xbee_rx(cmd_buffer):
+    try:
+        n = xbee.any()
+        if not n:
+            return cmd_buffer
+
+        raw = xbee.read(n)  # IMPORTANT: positional only (no keywords)
+        if not raw:
+            return cmd_buffer
+
+        cmd_buffer += raw.decode('utf-8', 'ignore')
+
+        while '\n' in cmd_buffer:
+            line, cmd_buffer = cmd_buffer.split('\n', 1)
+            line = line.strip()
+            if not line:
+                continue
+
+            if DEBUG:
+                print("RX:", line)
+
+            handled = handle_command_line(line)
+            if (not handled) and DEBUG:
+                print("Ignored:", line)
+
+        return cmd_buffer
+
+    except Exception as e:
+        # Don't let RX pumping crash the whole flight loop
+        if DEBUG:
+            print("pump_xbee_rx err:", e)
+        return cmd_buffer
+
+def update_gps_nonblocking():
+    # Never blocks; just consumes whatever bytes are available right now
+    kick()
+    n = gps_module.any()
+    if n and n > 0:
+        data = gps_module.read(n)
+        if data:
+            for b in data:
+                # micropyGPS expects chars
+                gps.update(chr(b))
+
+    lat = convert_coordinates(gps.latitude)
+    lon = convert_coordinates(gps.longitude)
+    if lat is None or lon is None:
+        return 0.0, 0.0
+    return lat, lon
+
+def send_telemetry(base_alt_ft):
+    kick()
+
+    current_alt_ft = calcAltitude(bmp.pressure) - base_alt_ft
+
+    # accel from MPU6050 object (library dependent, so guarded)
+    ax = getattr(mpu.accel, "x", 0.0)
+    ay = getattr(mpu.accel, "y", 0.0)
+    az = getattr(mpu.accel, "z", 0.0)
+
+    lat, lon = update_gps_nonblocking()
+
+    telemetry_obj = {
+        "altitude": round(current_alt_ft, 2),
+        "latitude": float(lat),
+        "longitude": float(lon),
+        "acceleration": {
+            "x": round(ax, 3),
+            "y": round(ay, 3),
+            "z": round(az, 3),
+        },
+        "temperature": round(bmp.temperature, 2),
+        "voltage": round(read_battery_voltage(), 2),
+    }
+
+    safe_write_line(ujson.dumps(telemetry_obj))
+
+    if DEBUG:
+        print("TEL:", telemetry_obj)
+
+    return current_alt_ft
+
+def send_image_frame(cmd_buffer):
+    kick()
+    img_b64 = get_photo_b64()
+    if not img_b64:
+        return cmd_buffer
+
+    filename = "frame.jpg"
+    size = len(img_b64)
+
+    safe_write_line("IMG|{}|{}".format(filename, size))
+    safe_write_line("IMG_START")
+
+    for i in range(0, size, CHUNK_SIZE):
+        kick()
+        cmd_buffer = pump_xbee_rx(cmd_buffer)  # <-- NEW
+        safe_write_line(img_b64[i:i + CHUNK_SIZE])
+
+    safe_write_line("IMG_END")
+
+    if DEBUG:
+        print("IMG sent:", size)
+
+    return cmd_buffer
         
-        if low_altitude and stable_descent:
-            stable_count += 1
-        else:
-            stable_count = 0  # Reset if conditions break
-            
-        if stable_count >= STABLE_COUNT_TARGET or impact_spike:
-            state = "LANDED"
-            break  # we exit!
+def send_ack(msg):
+    safe_write_line("ACK|{}".format(msg))
 
+def send_err(msg):
+    safe_write_line("ERR|{}".format(msg))
 
+def handle_command_line(line):
+    # Expect: CMD|...
+    if not line.startswith("CMD|"):
+        return False
 
+    cmd = line[4:].strip()
+    if not cmd:
+        send_err("empty")
+        return True
 
-	
-    # Req 5: "The telemetry shall consist of altitude, acceleration, payload temperature, and battery voltage.""
-    #telemetry = """
-	 #   {
-	#	    {
-    #            "altitude": {:.2f}, 
-   #             "acceleration": {
-    #                {
-     #                   "x": {:.2f}, 
-      #                  "y": {:.2f}, 
-       #                 "z": {:.2f}
-        #            }
-         #       }, 
-          #      "temperature": {:.2f},
-           #     "voltage": {:.2f}
-			#}
-	#	}""".format(current_alt, x, y, z, temperature, 0.0)
-    
+    if cmd.upper() == "STOP":
+        stop_motors()
+        send_ack("STOP")
+        return True
 
-    
-    telemetry = f"{current_alt}, {x}, {y}, {temperature}, 0.0, {latitude}, {longitude}"
-    xbee.write(telemetry)
-    print(telemetry)
-	
-    time.sleep(1) # Req 4: "During ascent and descent, the payload shall transmit telemetry once per second.""
-	
+    # Execute command sequence (FORWARD/LEFT/RIGHT/etc)
+    try:
+        execute_command_sequence(cmd)
+        send_ack(cmd)
+    except Exception as e:
+        send_err("bad_cmd")
+    return True
 
+def stop_motors():
+    motor_right_pwr.low()
+    motor_right_gnd.low()
+    motor_left_pwr.low()
+    motor_left_gnd.low()
 
-# mvmt parameters -- NEEDS TESTING
+# Movement parameters (tune)
 MOVE_SPEED = 0.5  # m/s
-TURN_RATE = 90    # deg/s
+TURN_RATE  = 90   # deg/s
 
 def execute_command_sequence(sequence):
-    commands = sequence.split(',')
+    # Example: "FORWARD 2.0, LEFT 90, FORWARD 1.5"
+    commands = [c.strip() for c in sequence.split(',') if c.strip()]
     for cmd in commands:
-        parts = cmd.strip().split()
-
-        # all commands consist of two parts: action and value
+        kick()
+        parts = cmd.split()
         if len(parts) < 2:
-            print("Invalid command format:", cmd)
+            if DEBUG: print("Bad cmd:", cmd)
             continue
-            
+
         action = parts[0].upper()
         try:
             value = float(parts[1])
         except ValueError:
-            # if value is NaN, skip this command
-            print("Invalid value in command:", cmd)
-            continue 
-        
+            if DEBUG: print("Bad value:", cmd)
+            continue
+
         if action == "FORWARD":
-            # Move forward for specified distance
             duration = value / MOVE_SPEED
-            motor_left.high()
-            motor_right.high()
+            leftMotorForward()
+            rightMotorForward()
             time.sleep(duration)
-            motor_left.low()
-            motor_right.low()
-            
+            stop_motors()
+
         elif action == "BACKWARD":
-            # Move backward for specified distance
             duration = value / MOVE_SPEED
-            motor_left.low()  # Reverse polarity
-            motor_right.low()
+            leftMotorBackward()
+            rightMotorBackward()
             time.sleep(duration)
-            motor_left.low()  # Stop
-            motor_right.low()
-            
+            stop_motors()
+
         elif action == "LEFT":
-            # Turn left for specified angle
             duration = value / TURN_RATE
             motor_left.low()
             motor_right.high()
             time.sleep(duration)
-            motor_left.low()
-            motor_right.low()
-            
+            stop_motors()
+
         elif action == "RIGHT":
-            # Turn right for specified angle
             duration = value / TURN_RATE
             motor_left.high()
             motor_right.low()
             time.sleep(duration)
-            motor_left.low()
-            motor_right.low()
-            
+            stop_motors()
+
         else:
-            print("Unknown command:", action)
-        
-        # pause between commands
+            if DEBUG: print("Unknown action:", action)
+
         time.sleep(0.2)
 
 
-# runs AFTER landing  detected
+### Main
+def main():
+    kick()
+
+    # Base altitude calibration (quick average)
+    time.sleep(0.2)
+    base_alt_ft = 0.0
+    for _ in range(8):
+        kick()
+        base_alt_ft += calcAltitude(bmp.pressure)
+        time.sleep(0.1)
+    base_alt_ft /= 8.0
+
+    if DEBUG:
+        print("Base alt(ft):", base_alt_ft)
+
+    last_tel = time.ticks_ms()
+    last_img = time.ticks_ms()
+
+    # Command line buffering (in case UART splits packets)
+    cmd_buffer = ""
+
+    while True:
+        kick()
+        now = time.ticks_ms()
+
+        # ---- Read incoming commands continuously ----
+        if xbee.any():
+            kick()
+            raw = xbee.read()
+            if raw:
+                try:
+                    cmd_buffer += raw.decode('utf-8', errors='ignore')
+                except:
+                    pass
+
+                while '\n' in cmd_buffer:
+                    line, cmd_buffer = cmd_buffer.split('\n', 1)
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    if DEBUG:
+                        print("RX:", line)
+
+                    handled = handle_command_line(line)
+
+                    # Optional: if you want to *see* unexpected lines
+                    if (not handled) and DEBUG:
+                        print("Ignored:", line)    
+
+        # ---- Telemetry @ 1 Hz ----
+        if time.ticks_diff(now, last_tel) >= TELEMETRY_PERIOD_MS:
+            last_tel = now
+            alt_ft = send_telemetry(base_alt_ft)
+
+        # ---- Image frames @ 1 Hz ----
+        if time.ticks_diff(now, last_img) >= IMAGE_PERIOD_MS:
+            last_img = now
+            cmd_buffer = send_image_frame(cmd_buffer)
+
+        # Small sleep to yield; keep low but not zero
+        time.sleep(0.01)
+
+
+# reboot if anything goes to shit
 while True:
-    if xbee.any():
-        # recv + decode
-        raw_data = xbee.read()
+    try:
+        main()
+    except Exception as e:
+        # Print the error if possible (helps debug)
         try:
-            command_sequence = raw_data.decode('utf-8').strip()
-            print("Received sequence:", command_sequence)
-            
-            # exec sequence
-            execute_command_sequence(command_sequence)
-            
-        except UnicodeError:
-            print("Invalid command encoding")
-    
-    time.sleep(0.1)
+            sys.print_exception(e)
+        except:
+            pass
 
+        # Give serial a moment to flush
+        try:
+            time.sleep(0.3)
+        except:
+            pass
 
-# example cmd: "FORWARD 2.0, LEFT 90, FORWARD 1.5"
+        reset()

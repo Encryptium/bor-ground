@@ -160,3 +160,6 @@
 [13/Jan/2026 20:09:01] {'temperature': 25.34, 'altitude': 2.89, 'voltage': 7.4, 'latitude': 38.88084, 'longitude': -77.40557, 'acceleration': {'z': 1.099, 'y': 0.006, 'x': 0.046}}
 [13/Jan/2026 20:09:06] {'temperature': 25.52, 'altitude': 2.7, 'voltage': 7.4, 'latitude': 38.88084, 'longitude': -77.40557, 'acceleration': {'z': 1.094, 'y': 0.004, 'x': 0.052}}
 [13/Jan/2026 20:09:11] {'temperature': 25.67, 'altitude': 3.57, 'voltage': 7.4, 'latitude': 38.88085, 'longitude': -77.40557, 'acceleration': {'z': 1.089, 'y': 0, 'x': 0.051}}
+[13/Jan/2026 20:09:15] {'temperature': 25.83, 'altitude': 3.66, 'voltage': 7.4, 'latitude': 38.88086, 'longitude': -77.40557, 'acceleration': {'z': 1.093, 'y': 0.003, 'x': 0.048}}
+[13/Jan/2026 20:09:20] {'temperature': 26, 'altitude': 3.53, 'voltage': 7.4, 'latitude': 38.88086, 'longitude': -77.40556, 'acceleration': {'z': 1.076, 'y': 0.001, 'x': 0.054}}
+[13/Jan/2026 20:09:25] {'temperature': 26.16, 'altitude': 3.65, 'voltage': 7.4, 'latitude': 38.88086, 'longitude': -77.40556, 'acceleration': {'z': 1.087, 'y': 0.002, 'x': 0.057}}
