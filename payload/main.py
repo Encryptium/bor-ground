@@ -68,6 +68,16 @@ motor_right_gnd = Pin(9, Pin.OUT)
 motor_right_pwr.low()
 motor_right_gnd.low()
 
+# Movement parameters (tune)
+MOVE_SPEED = 0.5  # m/s
+TURN_RATE  = 90   # deg/s
+
+def stop_motors():
+    motor_right_pwr.low()
+    motor_right_gnd.low()
+    motor_left_pwr.low()
+    motor_left_gnd.low()
+
 def leftMotorForward():
     motor_left_pwr.high()
     motor_left_gnd.low()
@@ -83,6 +93,21 @@ def leftMotorBackward():
 def rightMotorBackward():
     motor_right_pwr.low()
     motor_right_gnd.high()
+    
+# test motor sequence
+leftMotorForward()
+time.sleep(0.05)
+stop_motors()
+rightMotorForward()
+time.sleep(0.05)
+stop_motors()
+leftMotorBackward()
+time.sleep(0.05)
+stop_motors()
+rightMotorBackward()
+time.sleep(0.05)
+stop_motors()
+
 
 # -------------------------
 # Helpers
@@ -254,16 +279,6 @@ def handle_command_line(line):
     except Exception as e:
         send_err("bad_cmd")
     return True
-
-def stop_motors():
-    motor_right_pwr.low()
-    motor_right_gnd.low()
-    motor_left_pwr.low()
-    motor_left_gnd.low()
-
-# Movement parameters (tune)
-MOVE_SPEED = 0.5  # m/s
-TURN_RATE  = 90   # deg/s
 
 def execute_command_sequence(sequence):
     # Example: "FORWARD 2.0, LEFT 90, FORWARD 1.5"
