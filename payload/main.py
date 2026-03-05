@@ -1,76 +1,71 @@
 """
-2025 Mars Rover Payload/Rover Code (Cleaned + GPS kept for Ground Station)
+2025 Mars Rover Payload/Rover Code (Camera + WDT Optional)
 
-NOTE:
-- Competition rules may not require GPS, but ground station expects lat/lon for mapping.
-- This version is robust: watchdog + crash-reboot + non-blocking GPS.
+Toggles:
+- CAMERA_ENABLED = False  -> camera is never imported/called
+- WDT_ENABLED    = False  -> no watchdog, and NO auto-reset on crash (debug-friendly)
+
+Commands over XBee (newline-terminated):
+- CMD|STOP
+- CMD|FORWARD 2.0, LEFT 90, FORWARD 1.5
 """
 
-from machine import I2C, UART, Pin, WDT, reset
+from machine import I2C, UART, Pin, reset
 from bmp280 import BMP280
 from mpu6050 import MPU6050
 from micropyGPS import MicropyGPS
-from camera_helper import get_photo_b64
 import time
 import math
 import ujson
 import sys
 
-# -------------------------
 # USER SETTINGS
-# -------------------------
-DEBUG = True
+DEBUG = False
+
+CAMERA_ENABLED = False   # <<< True in flight if camera works
+WDT_ENABLED = True      # <<< True in flight, False while debugging
 
 XBEE_BAUD = 9600
 GPS_BAUD = 9600
 
 TELEMETRY_PERIOD_MS = 1000
-IMAGE_PERIOD_MS     = 1000
-CHUNK_SIZE          = 90
 
-LAND_ALT_FT_THRESHOLD = 10.0
-LAND_STABLE_MS        = 3000
+# only used if CAMERA_ENABLED
+IMAGE_PERIOD_MS = 1000
+CHUNK_SIZE = 90
 
-# Watchdog: pick 8–12s so it survives a slow image frame
+# only used if WDT_ENABLED
 WDT_TIMEOUT_MS = 8000
 
-# -------------------------
-# Watchdog
-# -------------------------
-time.sleep(5) # grace period before watchdog takes effect
-wdt = WDT(timeout=WDT_TIMEOUT_MS)
+# watchdog
+wdt = None
+if WDT_ENABLED:
+    from machine import WDT
+    time.sleep(5)  # grace period before watchdog starts
+    wdt = WDT(timeout=WDT_TIMEOUT_MS)
 
 def kick():
-    try:
-        wdt.feed()
-    except:
-        pass
+    if WDT_ENABLED and wdt is not None:
+        try:
+            wdt.feed()
+        except:
+            pass
 
-# -------------------------
-# Hardware setup
-# -------------------------
+# hardware setup
 xbee = UART(1, baudrate=XBEE_BAUD, rx=Pin(5), tx=Pin(4), timeout=3000)
 
 gps_module = UART(0, baudrate=GPS_BAUD, tx=Pin(0), rx=Pin(1))
 gps = MicropyGPS(-5)
 
-bus = I2C(1, sda=Pin(6), scl=Pin(7))
+bus = I2C(1, sda=Pin(6), scl=Pin(7), freq=100000)
+time.sleep(0.5)  # power stabilization delay
 bmp = BMP280(bus)
 mpu = MPU6050(bus)
 
-motor_left_pwr = Pin(10, Pin.OUT)
-motor_left_gnd = Pin(11, Pin.OUT)
-motor_left_pwr.low()
-motor_left_gnd.low()
-
-motor_right_pwr = Pin(8, Pin.OUT)
-motor_right_gnd = Pin(9, Pin.OUT)
-motor_right_pwr.low()
-motor_right_gnd.low()
-
-# Movement parameters (tune)
-MOVE_SPEED = 0.5  # m/s
-TURN_RATE  = 90   # deg/s
+motor_left_pwr  = Pin(10, Pin.OUT)
+motor_left_gnd  = Pin(11, Pin.OUT)
+motor_right_pwr = Pin(8,  Pin.OUT)
+motor_right_gnd = Pin(9,  Pin.OUT)
 
 def stop_motors():
     motor_right_pwr.low()
@@ -81,39 +76,36 @@ def stop_motors():
 def leftMotorForward():
     motor_left_pwr.high()
     motor_left_gnd.low()
-    
+
 def rightMotorForward():
     motor_right_pwr.high()
     motor_right_gnd.low()
-    
+
 def leftMotorBackward():
     motor_left_pwr.low()
     motor_left_gnd.high()
-    
+
 def rightMotorBackward():
     motor_right_pwr.low()
     motor_right_gnd.high()
-    
-# test motor sequence
-leftMotorForward()
-time.sleep(0.05)
-stop_motors()
-rightMotorForward()
-time.sleep(0.05)
-stop_motors()
-leftMotorBackward()
-time.sleep(0.05)
-stop_motors()
-rightMotorBackward()
-time.sleep(0.05)
-stop_motors()
 
+# movement parameters (tune)
+MOVE_SPEED = 0.005  # m/s
+TURN_RATE  = 55   # deg/s
 
-# -------------------------
-# Helpers
-# -------------------------
+# camera import (optional)
+get_photo_b64 = None
+if CAMERA_ENABLED:
+    try:
+        from camera_helper import get_photo_b64
+    except Exception as e:
+        CAMERA_ENABLED = False
+        get_photo_b64 = None
+        if DEBUG:
+            print("[CAM] disabled (import fail):", e)
+
+# helpers
 def calcAltitude(press_pa, unit='ft'):
-    # Barometric altitude approximation
     a = press_pa / 101325.0
     b = 1 / 5.25588
     c = 1.0 - math.pow(a, b)
@@ -123,7 +115,6 @@ def calcAltitude(press_pa, unit='ft'):
     return c
 
 def convert_coordinates(sections):
-    # sections like [deg, minutes, 'N'/'S' or 'E'/'W']
     if (not sections) or sections[0] == 0:
         return None
     deg = sections[0]
@@ -135,23 +126,59 @@ def convert_coordinates(sections):
     return float('{0:.6f}'.format(val))
 
 def read_battery_voltage():
-    # TODO: replace with ADC reading
     return 7.4
 
 def safe_write_line(s):
-    # Always newline-terminated packets
     if isinstance(s, str):
         xbee.write(s.encode('utf-8') + b'\n')
     else:
         xbee.write(s + b'\n')
-        
+
+def send_ack(msg):
+    safe_write_line("ACK|{}".format(msg))
+
+def send_err(msg):
+    safe_write_line("ERR|{}".format(msg))
+
+# STOP flag (set by CMD|STOP; checked during motion)
+stop_requested = False
+
+# XBee RX + command handling
+def handle_command_line(line):
+    # Expect: CMD|...
+    if not line.startswith("CMD|"):
+        return False
+
+    cmd = line[4:].strip()
+    if not cmd:
+        send_err("empty")
+        return True
+
+    if cmd.upper() == "STOP":
+        global stop_requested
+        stop_requested = True
+        stop_motors()
+        send_ack("STOP")
+        return True
+
+    try:
+        global _cmd_buffer_for_exec
+        _cmd_buffer_for_exec = execute_command_sequence(cmd, _cmd_buffer_for_exec)
+        send_ack(cmd)
+    except Exception:
+        send_err("bad_cmd")
+    return True
+
 def pump_xbee_rx(cmd_buffer):
+    """
+    Non-blocking RX pump; keeps cmd_buffer for partial lines.
+    """
     try:
         n = xbee.any()
         if not n:
             return cmd_buffer
 
-        raw = xbee.read(n)  # IMPORTANT: positional only (no keywords)
+        raw = xbee.read(n)
         if not raw:
             return cmd_buffer
 
@@ -162,7 +189,6 @@ def pump_xbee_rx(cmd_buffer):
             line = line.strip()
             if not line:
                 continue
-
             if DEBUG:
                 print("RX:", line)
 
@@ -171,22 +197,19 @@ def pump_xbee_rx(cmd_buffer):
                 print("Ignored:", line)
 
         return cmd_buffer
-
     except Exception as e:
-        # Don't let RX pumping crash the whole flight loop
         if DEBUG:
             print("pump_xbee_rx err:", e)
         return cmd_buffer
 
+# GPS (non-blocking)
 def update_gps_nonblocking():
-    # Never blocks; just consumes whatever bytes are available right now
     kick()
     n = gps_module.any()
     if n and n > 0:
         data = gps_module.read(n)
         if data:
             for b in data:
-                # micropyGPS expects chars
                 gps.update(chr(b))
 
     lat = convert_coordinates(gps.latitude)
@@ -195,12 +218,12 @@ def update_gps_nonblocking():
         return 0.0, 0.0
     return lat, lon
 
+# telemetry
 def send_telemetry(base_alt_ft):
     kick()
 
     current_alt_ft = calcAltitude(bmp.pressure) - base_alt_ft
 
-    # accel from MPU6050 object (library dependent, so guarded)
     ax = getattr(mpu.accel, "x", 0.0)
     ay = getattr(mpu.accel, "y", 0.0)
     az = getattr(mpu.accel, "z", 0.0)
@@ -221,13 +244,17 @@ def send_telemetry(base_alt_ft):
     }
 
     safe_write_line(ujson.dumps(telemetry_obj))
-
     if DEBUG:
         print("TEL:", telemetry_obj)
 
-    return current_alt_ft
-
 def send_image_frame(cmd_buffer):
+    """
+    Sends a base64 image over XBee in chunked lines.
+    Pumps RX between chunks so STOP can interrupt.
+    """
+    if (not CAMERA_ENABLED) or (get_photo_b64 is None):
+        return cmd_buffer
+
     kick()
     img_b64 = get_photo_b64()
     if not img_b64:
@@ -241,7 +268,7 @@ def send_image_frame(cmd_buffer):
 
     for i in range(0, size, CHUNK_SIZE):
         kick()
-        cmd_buffer = pump_xbee_rx(cmd_buffer)  # <-- NEW
+        cmd_buffer = pump_xbee_rx(cmd_buffer)
         safe_write_line(img_b64[i:i + CHUNK_SIZE])
 
     safe_write_line("IMG_END")
@@ -250,167 +277,145 @@ def send_image_frame(cmd_buffer):
         print("IMG sent:", size)
 
     return cmd_buffer
-        
-def send_ack(msg):
-    safe_write_line("ACK|{}".format(msg))
 
-def send_err(msg):
-    safe_write_line("ERR|{}".format(msg))
+def sleep_with_wdt_and_rx(seconds, cmd_buffer):
+    """Sleep for up to `seconds` while feeding WDT and pumping RX.
+    Returns updated cmd_buffer. Exits early if STOP was requested.
+    """
+    global stop_requested
+    t0 = time.ticks_ms()
+    total_ms = int(max(0, seconds) * 1000)
 
-def handle_command_line(line):
-    # Expect: CMD|...
-    if not line.startswith("CMD|"):
-        return False
+    # 20ms granularity keeps STOP responsive without burning CPU
+    while time.ticks_diff(time.ticks_ms(), t0) < total_ms:
+        if stop_requested:
+            break
+        kick()
+        cmd_buffer = pump_xbee_rx(cmd_buffer)
+        time.sleep(0.02)
 
-    cmd = line[4:].strip()
-    if not cmd:
-        send_err("empty")
-        return True
+    return cmd_buffer
 
-    if cmd.upper() == "STOP":
-        stop_motors()
-        send_ack("STOP")
-        return True
+# motion commands
+def execute_command_sequence(sequence, cmd_buffer=""):
+    """Execute a comma-separated command sequence.
 
-    # Execute command sequence (FORWARD/LEFT/RIGHT/etc)
-    try:
-        execute_command_sequence(cmd)
-        send_ack(cmd)
-    except Exception as e:
-        send_err("bad_cmd")
-    return True
+    Distances are in meters for FORWARD/BACKWARD.
+    Angles are in degrees for LEFT/RIGHT.
 
-def execute_command_sequence(sequence):
-    # Example: "FORWARD 2.0, LEFT 90, FORWARD 1.5"
+    Returns updated cmd_buffer.
+    """
+    global stop_requested
+
+    # clear any previous STOP
+    stop_requested = False
+
     commands = [c.strip() for c in sequence.split(',') if c.strip()]
     for cmd in commands:
         kick()
+
+        # allow STOP between sub-commands
+        if stop_requested:
+            break
+
         parts = cmd.split()
         if len(parts) < 2:
-            if DEBUG: print("Bad cmd:", cmd)
             continue
 
         action = parts[0].upper()
         try:
             value = float(parts[1])
         except ValueError:
-            if DEBUG: print("Bad value:", cmd)
             continue
 
         if action == "FORWARD":
             duration = value / MOVE_SPEED
-            leftMotorForward()
-            rightMotorForward()
-            time.sleep(duration)
+            leftMotorForward(); rightMotorForward()
+            cmd_buffer = sleep_with_wdt_and_rx(duration, cmd_buffer)
             stop_motors()
 
         elif action == "BACKWARD":
             duration = value / MOVE_SPEED
-            leftMotorBackward()
-            rightMotorBackward()
-            time.sleep(duration)
+            leftMotorBackward(); rightMotorBackward()
+            cmd_buffer = sleep_with_wdt_and_rx(duration, cmd_buffer)
             stop_motors()
 
         elif action == "LEFT":
             duration = value / TURN_RATE
-            motor_left.low()
-            motor_right.high()
-            time.sleep(duration)
+            leftMotorBackward(); rightMotorForward()
+            cmd_buffer = sleep_with_wdt_and_rx(duration, cmd_buffer)
             stop_motors()
 
         elif action == "RIGHT":
             duration = value / TURN_RATE
-            motor_left.high()
-            motor_right.low()
-            time.sleep(duration)
+            leftMotorForward(); rightMotorBackward()
+            cmd_buffer = sleep_with_wdt_and_rx(duration, cmd_buffer)
             stop_motors()
 
-        else:
-            if DEBUG: print("Unknown action:", action)
+        # brief pause between commands, still STOP/WDT safe
+        cmd_buffer = sleep_with_wdt_and_rx(0.2, cmd_buffer)
 
-        time.sleep(0.2)
+    return cmd_buffer
 
-
-### Main
-def main():
-    kick()
-
-    # Base altitude calibration (quick average)
+# main
+def calibrate_base_alt_ft():
     time.sleep(0.2)
     base_alt_ft = 0.0
     for _ in range(8):
         kick()
         base_alt_ft += calcAltitude(bmp.pressure)
         time.sleep(0.1)
-    base_alt_ft /= 8.0
+    return base_alt_ft / 8.0
+
+def main():
+    kick()
+    stop_motors()
+
+    base_alt_ft = calibrate_base_alt_ft()
 
     if DEBUG:
         print("Base alt(ft):", base_alt_ft)
+        print("Camera enabled:", CAMERA_ENABLED)
+        print("WDT enabled:", WDT_ENABLED)
 
     last_tel = time.ticks_ms()
     last_img = time.ticks_ms()
-
-    # Command line buffering (in case UART splits packets)
     cmd_buffer = ""
+    # shared buffer so motion routines can pump RX too
+    global _cmd_buffer_for_exec
+    _cmd_buffer_for_exec = ""
 
     while True:
         kick()
         now = time.ticks_ms()
 
-        # ---- Read incoming commands continuously ----
-        if xbee.any():
-            kick()
-            raw = xbee.read()
-            if raw:
-                try:
-                    cmd_buffer += raw.decode('utf-8', errors='ignore')
-                except:
-                    pass
+        # always pump RX (keeps STOP responsive)
+        cmd_buffer = pump_xbee_rx(cmd_buffer)
+        # keep command-exec buffer synced too
+        _cmd_buffer_for_exec = cmd_buffer
 
-                while '\n' in cmd_buffer:
-                    line, cmd_buffer = cmd_buffer.split('\n', 1)
-                    line = line.strip()
-                    if not line:
-                        continue
-
-                    if DEBUG:
-                        print("RX:", line)
-
-                    handled = handle_command_line(line)
-
-                    # Optional: if you want to *see* unexpected lines
-                    if (not handled) and DEBUG:
-                        print("Ignored:", line)    
-
-        # ---- Telemetry @ 1 Hz ----
+        # telemetry @ 1 Hz
         if time.ticks_diff(now, last_tel) >= TELEMETRY_PERIOD_MS:
             last_tel = now
-            alt_ft = send_telemetry(base_alt_ft)
+            send_telemetry(base_alt_ft)
 
-        # ---- Image frames @ 1 Hz ----
-        if time.ticks_diff(now, last_img) >= IMAGE_PERIOD_MS:
+        # camera frames @ 1 Hz (optional)
+        if CAMERA_ENABLED and time.ticks_diff(now, last_img) >= IMAGE_PERIOD_MS:
             last_img = now
             cmd_buffer = send_image_frame(cmd_buffer)
+            _cmd_buffer_for_exec = cmd_buffer
 
-        # Small sleep to yield; keep low but not zero
         time.sleep(0.01)
 
-
-# reboot if anything goes to shit
-while True:
+# boot behavior
+if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        # Print the error if possible (helps debug)
-        try:
-            sys.print_exception(e)
-        except:
-            pass
-
-        # Give serial a moment to flush
-        try:
-            time.sleep(0.3)
-        except:
-            pass
-
-        reset()
+        sys.print_exception(e)
+        stop_motors()
+        if WDT_ENABLED:
+            time.sleep(0.2)
+            reset()
+        else:
+            print("Program halted (WDT disabled).")
